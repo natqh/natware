@@ -1,0 +1,9 @@
+// The editor's page, built into the exe so natware is one file. editor_window.cpp serves these
+// at https://natware.local/<file>.
+EDITOR_HTML    RCDATA "assets\\editor.html"
+DIAGNOSTICS_JS RCDATA "assets\\diagnostics.js"
+WORKSPACE_CSS  RCDATA "assets\\workspace.css"
+WORKSPACE_JS   RCDATA "assets\\workspace.js"
+GLASS_JS       RCDATA "assets\\glass.js"
+DARK_VEIL_JS   RCDATA "assets\\dark-veil.js"
+BRAND_TTF      RCDATA "assets\\brand.ttf"

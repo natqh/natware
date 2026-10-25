@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- editor.exe: the WebView2 script editor, built and released on its own (tag "editor-v<version>").
+     Its sources stay in natware\src\features\editor\ and are compiled from there; the output
+     lands beside natware.exe in natware\build\. -->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{6D685ECA-68F2-4259-BCE6-E0D841052CDF}</ProjectGuid>
+    <RootNamespace>editor</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <ProjectName>editor</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros">
+    <WebView2Package>$(UserProfile)\.nuget\packages\microsoft.web.webview2\1.0.4022.49\build\native</WebView2Package>
+  </PropertyGroup>
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)..\natware\build\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)obj\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>editor</TargetName>
+    <IncludePath>..\natware\ext;..\natware\ext\json;$(WebView2Package)\include;$(IncludePath)</IncludePath>
+    <LibraryPath>$(WebView2Package)\x64;$(LibraryPath)</LibraryPath>
+    <!-- SDK 10.0.26100 has no rc.exe; the one from NuGet lives here (as for natware). -->
+    <ExecutablePath>$(UserProfile)\AppData\Local\sdk-tools;$(ExecutablePath)</ExecutablePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <AdditionalDependencies>WebView2LoaderStatic.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="..\natware\src\features\editor\editor_window.cpp" />
+    <ClCompile Include="..\natware\src\features\editor\nexec_bridge.cpp" />
+    <ClCompile Include="..\natware\src\features\editor\nexec_loader.cpp" />
+    <ClCompile Include="..\natware\src\features\editor\offset_dumper.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="version.h" />
+    <ClInclude Include="..\natware\src\features\editor\editor_window.h" />
+    <ClInclude Include="..\natware\src\features\editor\editor_diagnostics.h" />
+    <ClInclude Include="..\natware\src\features\editor\nexec_bridge.h" />
+    <ClInclude Include="..\natware\src\features\editor\nexec_loader.h" />
+    <ClInclude Include="..\natware\src\features\editor\offset_dumper.h" />
+    <ClInclude Include="..\natware\src\features\editor\shared_offsets.h" />
+    <ClInclude Include="..\natware\src\features\editor\shellcode.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="editor.rc" />
+    <ResourceCompile Include="..\natware\src\features\editor\editor_assets.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\natware\src\features\editor\assets\editor.html" />
+    <None Include="..\natware\src\features\editor\assets\workspace.css" />
+    <None Include="..\natware\src\features\editor\assets\workspace.js" />
+    <None Include="..\natware\src\features\editor\assets\diagnostics.js" />
+    <None Include="..\natware\src\features\editor\assets\glass.js" />
+    <None Include="..\natware\src\features\editor\assets\dark-veil.js" />
+    <None Include="..\natware\src\features\editor\assets\brand.ttf" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

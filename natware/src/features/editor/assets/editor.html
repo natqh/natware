@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>natware</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="workspace.css">
+</head>
+<body>
+<canvas id="veil-canvas" aria-hidden="true"></canvas>
+
+<div id="app">
+  <aside class="sidebar">
+    <div class="sidebar-top drag"><span class="brand">natware</span></div>
+    <nav class="nav-list" aria-label="Pages">
+      <span class="nav-indicator glass" data-radius="10" aria-hidden="true"></span>
+      <button class="nav" data-page="editor"><i data-icon="code-xml"></i><span>Editor</span></button>
+      <button class="nav" data-page="hub"><i data-icon="library-big"></i><span>Script hub</span></button>
+      <button class="nav" data-page="console"><i data-icon="square-terminal"></i><span>Console</span></button>
+    </nav>
+    <div class="sidebar-foot">
+      <button class="nav" id="open-preferences"><i data-icon="settings-2"></i><span>Preferences</span></button>
+    </div>
+  </aside>
+
+  <main>
+    <header class="titlebar drag">
+      <h1 id="page-title">Editor</h1>
+      <div class="header-tools" data-for="hub">
+        <div class="segmented" role="tablist" aria-label="Scripts">
+          <button role="tab" data-view="browse" aria-selected="true">Browse</button>
+          <button role="tab" data-view="saved" aria-selected="false">Saved <span class="seg-count" data-count="saved"></span></button>
+          <button role="tab" data-view="favorites" aria-selected="false">Favorites <span class="seg-count" data-count="favorites"></span></button>
+        </div>
+      </div>
+      <div class="window-controls">
+        <button class="window-button" id="window-minimize" title="Minimize" aria-label="Minimize"><i data-icon="minus"></i></button>
+        <button class="window-button close" id="window-close" title="Close" aria-label="Close"><i data-icon="x"></i></button>
+      </div>
+    </header>
+
+    <div class="pages">
+      <section id="page-editor" class="page" aria-label="Editor">
+        <div class="editor-card glass" data-radius="12" data-frost="0.42">
+          <div class="tab-strip">
+            <div class="tabs" id="tabs" role="tablist" aria-label="Open scripts"><span class="tab-indicator" aria-hidden="true"></span></div>
+            <button class="icon-button" id="new-tab" title="New tab (Ctrl+T)" aria-label="New tab"><i data-icon="plus"></i></button>
+            <span class="cursor-position" id="cursor-position">Ln 1, Col 1</span>
+          </div>
+          <div id="editor-host"><textarea id="fallback-editor" spellcheck="false" aria-label="Script editor"></textarea></div>
+        </div>
+
+        <div class="toolbar" role="toolbar" aria-label="Script actions">
+          <div class="tool-group" aria-label="natware">
+            <button id="execute" class="button primary" title="Send this tab to the backend; execution must be confirmed separately"><i data-icon="play"></i><span>Execute</span></button>
+            <button id="attach" class="button" title="Request a backend connection"><i data-icon="plug"></i><span>Attach</span></button>
+          </div>
+          <div class="tool-group" aria-label="Editing">
+            <button id="clear-editor" class="button quiet" title="Clear tab"><i data-icon="eraser"></i><span>Clear</span></button>
+            <button id="copy-script" class="button quiet" title="Copy script"><i data-icon="copy"></i><span>Copy</span></button>
+            <button id="paste-script" class="button quiet" title="Paste"><i data-icon="clipboard-paste"></i><span>Paste</span></button>
+          </div>
+          <div class="tool-group end" aria-label="File and library">
+            <button id="open-file" class="button quiet" title="Open a file (Ctrl+O)"><i data-icon="folder-open"></i><span>Open</span></button>
+            <button id="save-file" class="button quiet" title="Save as a file (Ctrl+S)"><i data-icon="download"></i><span>Save file</span></button>
+            <button id="save-hub" class="button" title="Save to your scripts in the hub (Ctrl+Shift+S)"><i data-icon="bookmark-plus"></i><span>Save to hub</span></button>
+          </div>
+        </div>
+
+        <p class="connection-status" id="connection-status" role="status">Checking editor host…</p>
+
+        <section class="console glass compact" id="inline-console" data-radius="12" data-frost="0.42" aria-label="Console">
+          <div class="console-head">
+            <button class="console-toggle" id="toggle-console" aria-expanded="true" title="Collapse console"><i data-icon="chevron-down" class="chevron"></i><span>Console</span></button>
+            <div class="console-actions">
+              <button class="icon-button" data-clear-console title="Clear console" aria-label="Clear console"><i data-icon="trash-2"></i></button>
+              <button class="icon-button" id="expand-console" title="Open full console" aria-label="Open full console"><i data-icon="maximize-2"></i></button>
+            </div>
+          </div>
+          <div class="log-list" data-log="compact" role="log" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <section id="page-hub" class="page" aria-label="Script hub">
+        <div class="hub-top">
+          <label class="search-field">
+            <i data-icon="search"></i>
+            <input id="hub-search" type="search" placeholder="Search scripts or games" aria-label="Search scripts" autocomplete="off" spellcheck="false">
+            <kbd>Ctrl K</kbd>
+          </label>
+          <button class="button filter-button" id="filter-toggle" aria-expanded="false" aria-controls="filter-panel"><i data-icon="sliders-horizontal"></i><span>Filters</span><span class="filter-badge" id="filter-badge" hidden></span></button>
+          <div class="combo" id="hub-sort"></div>
+          <div class="filter-panel" id="filter-panel" role="dialog" aria-label="Filters" hidden>
+            <div class="facet"><span class="facet-label">Key</span><div class="segmented small" data-facet="access">
+              <button data-value="any">Any</button><button data-value="keyless">No key</button><button data-value="key">Key system</button></div></div>
+            <div class="facet"><span class="facet-label">Status</span><div class="segmented small" data-facet="status">
+              <button data-value="any">Any</button><button data-value="working">Working</button><button data-value="patched">Patched</button></div></div>
+            <div class="facet"><span class="facet-label">Scope</span><div class="segmented small" data-facet="scope">
+              <button data-value="any">Any</button><button data-value="universal">Universal</button><button data-value="game">One game</button></div></div>
+            <div class="facet"><span class="facet-label">Price</span><div class="segmented small" data-facet="price">
+              <button data-value="free">Free</button><button data-value="paid">Paid</button><button data-value="any">Any</button></div></div>
+            <label class="facet facet-switch"><span class="facet-label">Verified creators only</span><input type="checkbox" class="switch" id="facet-verified"></label>
+            <div class="filter-foot">
+              <button class="text-button" id="filter-reset"><i data-icon="rotate-ccw"></i><span>Reset</span></button>
+              <span class="filter-total" id="filter-total"></span>
+              <button class="button small primary" id="filter-done">Done</button>
+            </div>
+          </div>
+        </div>
+        <div class="hub-status" id="hub-status"><div class="active-filters" id="active-filters"></div><span class="hub-total" id="hub-total"></span></div>
+        <div class="script-grid" id="hub-grid" role="list" aria-label="Scripts"></div>
+        <div class="hub-more" id="hub-more" aria-live="polite"></div>
+        <div class="empty-state" id="hub-empty" hidden>
+          <p class="empty-title" id="hub-empty-title"></p>
+          <p class="empty-text" id="hub-empty-text"></p>
+          <button class="button small" id="hub-empty-action"></button>
+        </div>
+      </section>
+
+      <section id="page-console" class="page" aria-label="Console">
+        <section class="console glass full" id="full-console" data-radius="12" data-frost="0.42" aria-label="Console">
+          <div class="console-head">
+            <div class="combo" id="log-level"></div>
+            <div class="console-actions">
+              <button class="text-button" id="export-diagnostics" title="Download diagnostic history from this and previous sessions">Export diagnostics</button>
+              <button class="text-button" id="open-log-folder" title="Open the native log folder">Log folder</button>
+              <button class="text-button" data-copy-console>Copy</button>
+              <button class="text-button" data-clear-console>Clear</button>
+            </div>
+          </div>
+          <div class="log-list" data-log="full" role="log" aria-live="polite"></div>
+        </section>
+      </section>
+    </div>
+    <div class="drawer-scrim" id="drawer-scrim"></div>
+    <aside class="drawer" id="script-drawer" aria-label="Script details" aria-hidden="true">
+      <div class="drawer-bar"><span class="drawer-source" id="drawer-source"></span><button class="window-button" id="drawer-close" title="Close (Esc)" aria-label="Close details"><i data-icon="x"></i></button></div>
+      <div class="drawer-scroll">
+        <div class="drawer-media" id="drawer-media"></div>
+        <h2 class="drawer-title" id="drawer-title"></h2>
+        <div class="drawer-owner" id="drawer-owner"></div>
+        <div class="drawer-stats" id="drawer-stats"></div>
+        <div class="drawer-tags" id="drawer-tags"></div>
+        <p class="drawer-text" id="drawer-text"></p>
+        <div class="drawer-code-label">Script</div>
+        <pre class="drawer-code" id="drawer-code"></pre>
+      </div>
+      <div class="drawer-actions">
+        <button class="button primary" id="drawer-open"><i data-icon="code-xml"></i><span>Open in editor</span></button>
+        <button class="button" id="drawer-copy"><i data-icon="copy"></i><span>Copy</span></button>
+        <span class="drawer-spacer"></span>
+        <button class="icon-button star" id="drawer-star" aria-pressed="false" title="Add to favorites"><i data-icon="star"></i></button>
+        <button class="icon-button row-delete" id="drawer-delete" title="Remove from saved" hidden><i data-icon="trash-2"></i></button>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<dialog id="save-dialog" class="window-dialog" aria-labelledby="save-title">
+  <form id="save-form" novalidate>
+    <header class="dialog-bar">
+      <i data-icon="bookmark-plus"></i><h2 id="save-title">Save to hub</h2>
+      <button type="button" class="window-button" data-close aria-label="Close"><i data-icon="x"></i></button>
+    </header>
+    <div class="dialog-body">
+      <label class="field"><span class="field-label">Name</span><input id="script-name" maxlength="70" placeholder="Script name" autocomplete="off" spellcheck="false"></label>
+      <label class="field"><span class="field-label">Description <span class="optional">optional</span></span><textarea id="script-description" maxlength="180" rows="3" placeholder="What it does"></textarea></label>
+      <p class="field-error" id="save-error" hidden>Give the script a name.</p>
+    </div>
+    <footer class="dialog-actions">
+      <button type="button" class="button" data-close>Cancel</button>
+      <button type="submit" class="button primary" id="save-submit">Save</button>
+    </footer>
+  </form>
+</dialog>
+
+<dialog id="settings-dialog" class="window-dialog" aria-labelledby="settings-title">
+  <header class="dialog-bar">
+    <i data-icon="settings-2"></i><h2 id="settings-title">Preferences</h2>
+    <button type="button" class="window-button" data-close aria-label="Close"><i data-icon="x"></i></button>
+  </header>
+  <div class="dialog-body rows">
+    <div class="pref-row"><span class="pref-label" id="font-size-label">Font size</span><div class="combo" id="font-size"></div></div>
+    <label class="pref-row"><span class="pref-label">Word wrap</span><input id="word-wrap" type="checkbox" class="switch"></label>
+    <label class="pref-row"><span class="pref-label">Minimap</span><input id="minimap" type="checkbox" class="switch"></label>
+    <label class="pref-row"><span class="pref-label">Smooth motion</span><input id="smooth-motion" type="checkbox" class="switch"></label>
+  </div>
+</dialog>
+
+<dialog id="confirm-dialog" class="window-dialog small" aria-labelledby="confirm-title">
+  <form id="confirm-form">
+    <div class="dialog-body">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-message"></p>
+    </div>
+    <footer class="dialog-actions">
+      <button type="button" class="button" data-close>Cancel</button>
+      <button type="submit" class="button danger" id="confirm-ok">Confirm</button>
+    </footer>
+  </form>
+</dialog>
+
+<div id="toast" role="status" aria-live="polite"><i data-icon="check"></i><span></span></div>
+<input type="file" id="file-input" accept=".lua,.luau,.txt" multiple hidden>
+
+<script src="diagnostics.js"></script>
+<script src="dark-veil.js"></script>
+<script src="glass.js"></script>
+<script src="workspace.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js" onerror="editorUnavailable()"></script>
+<script>startMonaco()</script>
+</body>
+</html>

@@ -1,0 +1,491 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{0b0f2d02-78b1-49b9-a139-3edc60822f21}</ProjectGuid>
+    <RootNamespace>natware</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <ProjectName>natware</ProjectName>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.props" />
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(ProjectDir)build\</OutDir>
+    <IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir>
+    <VcpkgTriplet>x64-windows-static</VcpkgTriplet>
+    <IncludePath>ext\Clipper2Lib\include;ext\Clipper2Lib\include\clipper2;ext;ext\ft\freetype\include;src;ext\json;ext\imgui;ext\zstd;ext\blake3;ext\xxhash;src\render;src\features\explorer;$(UserProfile)\.nuget\packages\microsoft.web.webview2\1.0.4022.49\build\native\include;$(IncludePath)</IncludePath>
+    <LibraryPath>ext\imgui\include;ext;ext\zstd;ext\libs;ext\ft\freetype\lib\x64;$(UserProfile)\.nuget\packages\microsoft.web.webview2\1.0.4022.49\build\native\x64;$(LibraryPath)</LibraryPath>
+    <ExecutablePath>$(UserProfile)\AppData\Local\sdk-tools;$(ExecutablePath)</ExecutablePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(ProjectDir)build\</OutDir>
+    <IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir>
+    <VcpkgTriplet>x64-windows-static</VcpkgTriplet>
+    <IncludePath>ext\Clipper2Lib\include;ext\Clipper2Lib\include\clipper2;ext;ext\ft\freetype\include;src;ext\json;ext\imgui;ext\zstd;ext\blake3;ext\xxhash;src\render;src\features\explorer;$(UserProfile)\.nuget\packages\microsoft.web.webview2\1.0.4022.49\build\native\include;$(IncludePath)</IncludePath>
+    <LibraryPath>ext\imgui\include;ext;ext\zstd;ext\libs;ext\ft\freetype\lib\x64;$(UserProfile)\.nuget\packages\microsoft.web.webview2\1.0.4022.49\build\native\x64;$(LibraryPath)</LibraryPath>
+    <ExecutablePath>$(UserProfile)\AppData\Local\sdk-tools;$(ExecutablePath)</ExecutablePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <GenerateManifest Condition="'$(SkipGuiBuildManifest)'=='true'">false</GenerateManifest>
+      <SubSystem>Windows</SubSystem><EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalOptions Condition="'$(SkipGuiBuildManifest)'=='true'">/MANIFEST:NO %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <GenerateManifest Condition="'$(SkipGuiBuildManifest)'=='true'">false</GenerateManifest>
+      <SubSystem>Windows</SubSystem><EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalOptions Condition="'$(SkipGuiBuildManifest)'=='true'">/MANIFEST:NO %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <LanguageStandard_C>stdclatest</LanguageStandard_C>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <GenerateManifest Condition="'$(SkipGuiBuildManifest)'=='true'">false</GenerateManifest>
+      <SubSystem>Windows</SubSystem><EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>shlwapi.lib;d3d11.lib;freetype.lib;dxgi.lib;blake3.lib;zstd_static.lib;ntdll.lib;WebView2LoaderStatic.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>msvcrt.lib;msvcrtd.lib;zlib.lib;zlib1.lib;brotlicommon.lib;brotlidec.lib;brotlienc.lib;bz2.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <AdditionalOptions>/FORCE:MULTIPLE /ignore:4099 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="'$(SkipGuiBuildManifest)'=='true'">/MANIFEST:NO %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp23</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <GenerateManifest Condition="'$(SkipGuiBuildManifest)'=='true'">false</GenerateManifest>
+      <SubSystem>Windows</SubSystem><EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <UACExecutionLevel>AsInvoker</UACExecutionLevel>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>shlwapi.lib;d3d11.lib;freetype.lib;dxgi.lib;blake3.lib;zstd_static.lib;ntdll.lib;WebView2LoaderStatic.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreSpecificDefaultLibraries>msvcrt.lib;msvcrtd.lib;zlib.lib;zlib1.lib;brotlicommon.lib;brotlidec.lib;brotlienc.lib;bz2.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <AdditionalOptions>/FORCE:MULTIPLE /ignore:4099 %(AdditionalOptions) </AdditionalOptions>
+      <AdditionalOptions Condition="'$(SkipGuiBuildManifest)'=='true'">/MANIFEST:NO %(AdditionalOptions)</AdditionalOptions>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="ext\Clipper2Lib\src\clipper.engine.cpp" />
+    <ClCompile Include="ext\Clipper2Lib\src\clipper.offset.cpp" />
+    <ClCompile Include="ext\Clipper2Lib\src\clipper.rectclip.cpp" />
+    <!-- Removed: ext\dicons\explorer_textures.cpp - duplicate of src\features\explorer\texture\explorer_textures.cpp -->
+    <ClCompile Include="ext\imgui\addons\imgui_addons.cpp" />
+    <ClCompile Include="ext\imgui\addons\imgui_notification.cpp" />
+    <ClCompile Include="ext\imgui\backends\imgui_impl_dx11.cpp" />
+    <ClCompile Include="ext\imgui\backends\imgui_impl_win32.cpp" />
+    <ClCompile Include="ext\imgui\imgui.cpp" />
+    <ClCompile Include="ext\imgui\imgui_demo.cpp" />
+    <ClCompile Include="ext\imgui\imgui_draw.cpp" />
+    <ClCompile Include="ext\imgui\imgui_tables.cpp" />
+    <ClCompile Include="ext\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="ext\imgui\misc\imgui_freetype.cpp" />
+    <ClCompile Include="ext\imgui\texteditor.cpp" />
+    <ClCompile Include="src\cache\bodyparts\bodyparts.cpp" />
+    <ClCompile Include="src\cache\cache.cpp" />
+    <ClCompile Include="src\cache\custom_entities\custom_entities.cpp" />
+    <ClCompile Include="src\gamesupport\gamesupport.cpp" />
+    <ClCompile Include="src\gamesupport\LumberTycoon2\lt2.cpp" />
+    <ClCompile Include="src\features\aimbot\aimbot.cpp" />
+    <ClCompile Include="src\features\avatarmanager\avatarmanager.cpp" />
+    <ClCompile Include="src\features\exploits\antiafk\antiafk.cpp" />
+    <ClCompile Include="src\features\exploits\client\fpscaps.cpp" />
+    <ClCompile Include="src\features\exploits\freezeplayer\freezeplayer.cpp" />
+    <ClCompile Include="src\features\explorer\texture\explorer_textures.cpp" />
+    <ClCompile Include="src\features\lighting\clocktime\clocktime.cpp" />
+    <ClCompile Include="src\features\lighting\exposure\exposure.cpp" />
+    <ClCompile Include="src\features\lighting\skybox\skybox.cpp" />
+    <ClCompile Include="src\features\movement\fly\fly.cpp" />
+    <ClCompile Include="src\features\movement\gravity\gravity.cpp" />
+    <ClCompile Include="src\features\movement\jump\jump.cpp" />
+    <ClCompile Include="src\features\movement\movement.cpp" />
+    <ClCompile Include="src\features\movement\speed\speed.cpp" />
+    <ClCompile Include="src\features\movement\tickrate\tickrate.cpp" />
+    <ClCompile Include="src\features\rage\hbe\hitbox_expander.cpp" />
+    <ClCompile Include="src\features\rage\hipheight\hipheight.cpp" />
+    <ClCompile Include="src\features\rage\hitsound\hitsounds.cpp" />
+    <ClCompile Include="src\features\rage\hittracers\hittracers.cpp" />
+    <ClCompile Include="src\features\exploits\headless\headless.cpp" />
+    <ClCompile Include="src\features\exploits\korblox\korblox.cpp" />
+    <ClCompile Include="src\features\rage\noclip\noclip.cpp" />
+    <ClCompile Include="src\features\rage\orbit\orbit.cpp" />
+    <ClCompile Include="src\features\rage\rapidfire\rapidfire.cpp" />
+    <ClCompile Include="src\features\rage\spin360\spin360.cpp" />
+    <ClCompile Include="src\features\silentaim\silentaim.cpp" />
+    <ClCompile Include="src\features\triggerbot\triggerbot.cpp" />
+    <ClCompile Include="src\features\esp\esp.cpp" />
+    <ClCompile Include="src\features\chams\engine_chams.cpp" />
+    <ClCompile Include="src\features\chams\body_chams.cpp" />
+    <ClCompile Include="src\features\aimbot\pf_mouse.cpp" />
+    <ClCompile Include="src\features\aimbot\aim_guard.cpp" />
+    <ClCompile Include="src\features\aimbot\physical_mouse.cpp" />
+    <ClCompile Include="src\features\esp\esp_draw.cpp" />
+    <ClCompile Include="src\features\esp\rig.cpp" />
+    <ClCompile Include="src\features\esp\parser\meshparser.cpp" />
+    <ClCompile Include="src\features\explorer\explorer.cpp" />
+    <ClCompile Include="src\features\lighting\fog\fog.cpp" />
+    <ClCompile Include="src\features\lighting\shadows\shadows.cpp" />
+    <ClCompile Include="src\memory\memory.cpp" />
+    <ClCompile Include="src\menu\menu.cpp" />
+    <ClCompile Include="src\menu\preview\preview.cpp" />
+    <ClCompile Include="src\menu\ui\ui.cpp" />
+    <ClCompile Include="src\menu\ui\veil.cpp" />
+    <ClCompile Include="src\menu\ui\profile.cpp" />
+    <ClCompile Include="src\features\config\config.cpp" />
+    <ClCompile Include="src\game\game.cpp" />
+    <ClCompile Include="src\game\rescan\rescan.cpp" />
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="src\menu\keybind\keybind.cpp" />
+    <ClCompile Include="src\menu\rardar\radar.cpp" />
+    <ClCompile Include="src\render\3d\main_api.cpp" />
+    <ClCompile Include="src\render\3d\parsers\mtl_parser.cpp" />
+    <ClCompile Include="src\render\3d\parsers\obj_parser.cpp" />
+    <ClCompile Include="src\render\3d\texture\texture_cache.cpp" />
+    <ClCompile Include="src\render\render.cpp" />
+    <ClCompile Include="src\render\textures\texture.cpp" />
+    <ClCompile Include="src\sdk\sdk.cpp" />
+    <ClCompile Include="src\stb_image_impl.cpp" />
+    <ClCompile Include="src\features\aimbot\aim_log.cpp" />
+    <ClCompile Include="src\features\aimbot\aim_target.cpp" />
+    <ClCompile Include="src\updater\updater.cpp" />
+    <ClCompile Include="src\wallcheck\wallcheck.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="ext\blake3\blake3.h" />
+    <ClInclude Include="ext\blake3\blake3_impl.h" />
+    <ClInclude Include="ext\Clipper2Lib\include\clipper2\clipper.core.h" />
+    <ClInclude Include="ext\Clipper2Lib\include\clipper2\clipper.engine.h" />
+    <ClInclude Include="ext\Clipper2Lib\include\clipper2\clipper.export.h" />
+    <ClInclude Include="ext\Clipper2Lib\include\clipper2\clipper.h" />
+    <ClInclude Include="ext\Clipper2Lib\include\clipper2\clipper.minkowski.h" />
+    <ClInclude Include="ext\Clipper2Lib\include\clipper2\clipper.offset.h" />
+    <ClInclude Include="ext\Clipper2Lib\include\clipper2\clipper.rectclip.h" />
+    <ClInclude Include="ext\Clipper2Lib\include\clipper2\clipper.version.h" />
+    <ClInclude Include="ext\dicons\dex_icons.h" />
+    <ClInclude Include="ext\dicons\warn.h" />
+    <ClInclude Include="ext\font\arial.h" />
+    <ClInclude Include="ext\font\config\font_config.h" />
+    <ClInclude Include="ext\font\sp7.h" />
+    <ClInclude Include="ext\font\tah.h" />
+    <ClInclude Include="ext\font\verdana_bold.h" />
+    <ClInclude Include="ext\font\tahoma.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\config\ftconfig.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\config\ftheader.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\config\ftmodule.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\config\ftoption.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\config\ftstdlib.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\config\integer-types.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\config\mac-support.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\config\public-macros.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\freetype.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftadvanc.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftbbox.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftbdf.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftbitmap.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftbzip2.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftcache.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftchapters.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftcid.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftcolor.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftdriver.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\fterrdef.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\fterrors.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftfntfmt.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftgasp.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftglyph.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftgxval.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftgzip.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftimage.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftincrem.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftlcdfil.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftlist.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftlogging.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftlzw.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftmac.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftmm.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftmodapi.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftmoderr.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftotval.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftoutln.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftparams.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftpfr.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftrender.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftsizes.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftsnames.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftstroke.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftsynth.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftsystem.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\fttrigon.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\fttypes.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ftwinfnt.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\otsvg.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\t1tables.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\ttnameid.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\tttables.h" />
+    <ClInclude Include="ext\ft\freetype\include\freetype\tttags.h" />
+    <ClInclude Include="ext\ft\freetype\include\ft2build.h" />
+    <ClInclude Include="ext\hitsounds.h" />
+    <ClInclude Include="ext\imgui\addons\imgui_addons.h" />
+    <ClInclude Include="ext\imgui\addons\imgui_notification.h" />
+    <ClInclude Include="ext\imgui\backends\imgui_impl_dx11.h" />
+    <ClInclude Include="ext\imgui\backends\imgui_impl_win32.h" />
+    <ClInclude Include="ext\imgui\imconfig.h" />
+    <ClInclude Include="ext\imgui\imgui.h" />
+    <ClInclude Include="ext\imgui\imgui_internal.h" />
+    <ClInclude Include="ext\imgui\imstb_rectpack.h" />
+    <ClInclude Include="ext\imgui\imstb_textedit.h" />
+    <ClInclude Include="ext\imgui\imstb_truetype.h" />
+    <ClInclude Include="ext\imgui\include\D3DX11.h" />
+    <ClInclude Include="ext\imgui\include\D3DX11async.h" />
+    <ClInclude Include="ext\imgui\include\D3DX11core.h" />
+    <ClInclude Include="ext\imgui\include\D3DX11tex.h" />
+    <ClInclude Include="ext\imgui\logo\image_logo.h" />
+    <ClInclude Include="ext\imgui\misc\imgui_freetype.h" />
+    <ClInclude Include="ext\imgui\resources\fonts\font_montserrat_medium.h" />
+    <ClInclude Include="ext\imgui\stb_image.h" />
+    <ClInclude Include="ext\imgui\texteditor.hpp" />
+    <ClInclude Include="ext\json\json.hpp" />
+    <ClInclude Include="ext\zstd\common\allocations.h" />
+    <ClInclude Include="ext\zstd\common\bits.h" />
+    <ClInclude Include="ext\zstd\common\bitstream.h" />
+    <ClInclude Include="ext\zstd\common\compiler.h" />
+    <ClInclude Include="ext\zstd\common\cpu.h" />
+    <ClInclude Include="ext\zstd\common\debug.h" />
+    <ClInclude Include="ext\zstd\common\error_private.h" />
+    <ClInclude Include="ext\zstd\common\fse.h" />
+    <ClInclude Include="ext\zstd\common\huf.h" />
+    <ClInclude Include="ext\zstd\common\mem.h" />
+    <ClInclude Include="ext\zstd\common\pool.h" />
+    <ClInclude Include="ext\zstd\common\portability_macros.h" />
+    <ClInclude Include="ext\zstd\common\threading.h" />
+    <ClInclude Include="ext\zstd\common\xxhash.h" />
+    <ClInclude Include="ext\zstd\common\zstd_deps.h" />
+    <ClInclude Include="ext\zstd\common\zstd_internal.h" />
+    <ClInclude Include="ext\zstd\common\zstd_trace.h" />
+    <ClInclude Include="ext\zstd\compress\clevels.h" />
+    <ClInclude Include="ext\zstd\compress\hist.h" />
+    <ClInclude Include="ext\zstd\compress\zstdmt_compress.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_compress_internal.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_compress_literals.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_compress_sequences.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_compress_superblock.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_cwksp.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_double_fast.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_fast.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_lazy.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_ldm.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_ldm_geartab.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_opt.h" />
+    <ClInclude Include="ext\zstd\compress\zstd_preSplit.h" />
+    <ClInclude Include="ext\zstd\decompress\zstd_ddict.h" />
+    <ClInclude Include="ext\zstd\decompress\zstd_decompress_block.h" />
+    <ClInclude Include="ext\zstd\decompress\zstd_decompress_internal.h" />
+    <ClInclude Include="ext\zstd\zdict.h" />
+    <ClInclude Include="ext\zstd\zstd.h" />
+    <ClInclude Include="ext\zstd\zstd_errors.h" />
+    <ClInclude Include="ext\include.hxx" />
+    <ClInclude Include="src\cache\bodyparts\bodyparts.h" />
+    <ClInclude Include="src\cache\cache.h" />
+    <ClInclude Include="src\cache\custom_entities\custom_entities.h" />
+    <ClInclude Include="src\gamesupport\gamesupport.h" />
+    <ClInclude Include="src\gamesupport\LumberTycoon2\lt2.h" />
+    <ClInclude Include="src\features\aimbot\aimbot.h" />
+    <ClInclude Include="src\features\avatarmanager\avatarmanager.h" />
+    <ClInclude Include="src\features\exploits\antiafk\antiafk.h" />
+    <ClInclude Include="src\features\exploits\client\fpscaps.h" />
+    <ClInclude Include="src\features\exploits\freezeplayer\freezeplayer.h" />
+    <ClInclude Include="src\features\explorer\decompiler\decompiler.h" />
+    <ClInclude Include="src\features\explorer\globals.h" />
+    <ClInclude Include="src\features\lighting\clocktime\clocktime.h" />
+    <ClInclude Include="src\features\lighting\exposure\exposure.h" />
+    <ClInclude Include="src\features\lighting\skybox\skybox.h" />
+    <ClInclude Include="src\features\movement\fly\fly.h" />
+    <ClInclude Include="src\features\movement\gravity\gravity.h" />
+    <ClInclude Include="src\features\movement\jump\jump.h" />
+    <ClInclude Include="src\features\movement\movement.h" />
+    <ClInclude Include="src\features\movement\speed\speed.h" />
+    <ClInclude Include="src\features\movement\tickrate\tickrate.h" />
+    <ClInclude Include="src\features\rage\hbe\hitbox_expander.h" />
+    <ClInclude Include="src\features\rage\hipheight\hipheight.h" />
+    <ClInclude Include="src\features\rage\hitsound\hitsounds.h" />
+    <ClInclude Include="src\features\rage\hittracers\hittracers.h" />
+    <ClInclude Include="src\features\exploits\headless\headless.h" />
+    <ClInclude Include="src\features\exploits\korblox\korblox.h" />
+    <ClInclude Include="src\features\rage\noclip\noclip.h" />
+    <ClInclude Include="src\features\rage\orbit\orbit.h" />
+    <ClInclude Include="src\features\rage\rapidfire\rapidfire.h" />
+    <ClInclude Include="src\features\rage\spin360\spin360.h" />
+    <ClInclude Include="src\features\silentaim\silentaim.h" />
+    <ClInclude Include="src\features\esp\esp.h" />
+    <ClInclude Include="src\features\chams\engine_chams.h" />
+    <ClInclude Include="src\features\chams\body_chams.h" />
+    <ClInclude Include="src\features\aimbot\pf_mouse.h" />
+    <ClInclude Include="src\features\aimbot\aim_guard.h" />
+    <ClInclude Include="src\features\aimbot\physical_mouse.h" />
+    <ClInclude Include="src\features\esp\esp_draw.h" />
+    <ClInclude Include="src\sdk\math\viewproj.h" />
+    <ClInclude Include="src\features\esp\rig.h" />
+    <ClInclude Include="src\features\chams\chams_layout.h" />
+    <ClInclude Include="src\features\esp\parser\meshparser.h" />
+    <ClInclude Include="src\features\explorer\explorer.h" />
+    <ClInclude Include="src\features\lighting\fog\fog.h" />
+    <ClInclude Include="src\features\lighting\shadows\shadows.h" />
+    <ClInclude Include="src\memory\memory.h" />
+    <ClInclude Include="src\menu\menu.h" />
+    <ClInclude Include="src\features\config\config.h" />
+    <ClInclude Include="src\game\game.h" />
+    <ClInclude Include="src\game\rescan\rescan.h" />
+    <ClInclude Include="src\menu\keybind\keybind.h" />
+    <ClInclude Include="src\menu\rardar\radar.h" />
+    <ClInclude Include="src\render\3d\main_api.hpp" />
+    <ClInclude Include="src\render\3d\parsers\mtl_parser.hpp" />
+    <ClInclude Include="src\render\3d\parsers\obj_parser.hpp" />
+    <ClInclude Include="src\render\3d\texture\texture_cache.hpp" />
+    <ClInclude Include="src\render\render.h" />
+    <ClInclude Include="src\render\textures\texture.h" />
+    <ClInclude Include="src\Offsets\FFlags.hpp" />
+    <ClInclude Include="src\sdk\math\math.h" />
+    <ClInclude Include="src\Offsets\Offsets.hpp" />
+    <ClInclude Include="src\Offsets\OffsetLoader.hpp" />
+    <ClInclude Include="src\sdk\sdk.h" />
+    <ClInclude Include="src\settings.h" />
+    <ClInclude Include="src\wallcheck\obb.h" />
+    <ClInclude Include="src\features\aimbot\aim_log.h" />
+    <ClInclude Include="src\features\aimbot\aim_target.h" />
+    <ClInclude Include="src\updater\updater.h" />
+    <ClInclude Include="src\version.h" />
+    <ClInclude Include="src\wallcheck\wallcheck.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ext\dicons\dex_icons_loader.inc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="ext\ft\freetype\lib\x64\freetype.lib" />
+    <Library Include="ext\libs\blake3.lib" />
+    <Library Include="ext\libs\zstd_static.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="src\version.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="src\memory\luck.asm" />
+  </ItemGroup>
+  <ItemGroup>
+  </ItemGroup>
+  <!-- editor.exe is its own program and release; building natware builds it too, beside natware.exe.
+       (/p:BuildProjectReferences=false builds natware alone, as release.ps1 does.) -->
+  <ItemGroup>
+    <ProjectReference Include="..\editor\editor.vcxproj">
+      <Project>{6D685ECA-68F2-4259-BCE6-E0D841052CDF}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
+  </ImportGroup>
+</Project>

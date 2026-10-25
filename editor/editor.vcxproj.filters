@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="editor">
+      <UniqueIdentifier>{3B0E4A3C-5E1D-4C55-9D73-1C1A2E7B9F01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="editor\assets">
+      <UniqueIdentifier>{3B0E4A3C-5E1D-4C55-9D73-1C1A2E7B9F02}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="..\natware\src\features\editor\editor_window.cpp"><Filter>editor</Filter></ClCompile>
+    <ClCompile Include="..\natware\src\features\editor\nexec_bridge.cpp"><Filter>editor</Filter></ClCompile>
+    <ClCompile Include="..\natware\src\features\editor\nexec_loader.cpp"><Filter>editor</Filter></ClCompile>
+    <ClCompile Include="..\natware\src\features\editor\offset_dumper.cpp"><Filter>editor</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="version.h" />
+    <ClInclude Include="..\natware\src\features\editor\editor_window.h"><Filter>editor</Filter></ClInclude>
+    <ClInclude Include="..\natware\src\features\editor\editor_diagnostics.h"><Filter>editor</Filter></ClInclude>
+    <ClInclude Include="..\natware\src\features\editor\nexec_bridge.h"><Filter>editor</Filter></ClInclude>
+    <ClInclude Include="..\natware\src\features\editor\nexec_loader.h"><Filter>editor</Filter></ClInclude>
+    <ClInclude Include="..\natware\src\features\editor\offset_dumper.h"><Filter>editor</Filter></ClInclude>
+    <ClInclude Include="..\natware\src\features\editor\shared_offsets.h"><Filter>editor</Filter></ClInclude>
+    <ClInclude Include="..\natware\src\features\editor\shellcode.h"><Filter>editor</Filter></ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="editor.rc" />
+    <ResourceCompile Include="..\natware\src\features\editor\editor_assets.rc"><Filter>editor</Filter></ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\natware\src\features\editor\assets\editor.html"><Filter>editor\assets</Filter></None>
+    <None Include="..\natware\src\features\editor\assets\workspace.css"><Filter>editor\assets</Filter></None>
+    <None Include="..\natware\src\features\editor\assets\workspace.js"><Filter>editor\assets</Filter></None>
+    <None Include="..\natware\src\features\editor\assets\diagnostics.js"><Filter>editor\assets</Filter></None>
+    <None Include="..\natware\src\features\editor\assets\glass.js"><Filter>editor\assets</Filter></None>
+    <None Include="..\natware\src\features\editor\assets\dark-veil.js"><Filter>editor\assets</Filter></None>
+    <None Include="..\natware\src\features\editor\assets\brand.ttf"><Filter>editor\assets</Filter></None>
+  </ItemGroup>
+</Project>

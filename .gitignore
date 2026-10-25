@@ -1,0 +1,21 @@
+# Build output and intermediates (natware\build\ also holds data\settings.json with the update token)
+build/
+obj/
+natware/build/
+natware/obj/
+editor/obj/
+tests/build/
+*.pdb
+*.ipdb
+*.iobj
+*.ilk
+*.obj
+*.log
+*.tlog
+
+# Visual Studio per-user state
+.vs/
+*.user
+
+# Screenshots from UI reviews
+ui-review/
