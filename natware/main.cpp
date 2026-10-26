@@ -3,12 +3,25 @@
 #include <shellapi.h>
 #pragma comment(lib, "winmm.lib")
 #pragma comment(lib, "shell32.lib")
+#pragma comment(lib, "urlmon.lib")
 #include <Offsets/OffsetLoader.hpp>
 #include <features/config/config.h>
 #include <menu/preview/preview.h>
 #include <features/chams/engine_chams.h>
 #include <updater/updater.h>
 #include <version.h>
+#include <paths.h>
+#include <layout.h>
+// The "n" (icon resource 1, src\natware.ico) on a window, for the taskbar and Alt+Tab.
+static void set_window_icon(HWND hwnd)
+{
+    const HINSTANCE instance = GetModuleHandleW(nullptr);
+    if (const HANDLE big = LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0))
+        SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(big));
+    if (const HANDLE little = LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0))
+        SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(little));
+}
+
 // natware has no console: problems are shown in a message box, and while it waits on Roblox
 // a small card says so and keeps a way to close.
 static int fail(const char* what)
@@ -93,7 +106,7 @@ static void wait_for(const char* status, int ms)
 }
 
 // ---- the editor (editor.exe) ---------------------------------------------------------------
-// The editor is its own program beside natware.exe. natware starts it and stays in the background
+// The editor is its own program, in the natware folder's bin\. natware starts it and stays in the background
 // while it's open: it keeps checking for updates, offers them in a Windows dialog (the editor's
 // page has no overlay to draw a prompt on), restarts the editor into a new version, and puts a
 // staged natware in place once the editor closes. The editor starts nexec.exe itself.
@@ -180,7 +193,7 @@ static void close_editor()
 
 // A component the editor needs and that isn't there yet (the first start after natware was
 // updated from a single-exe version): downloaded now, with the waiting card showing how far.
-static bool ensure_component(const char* name)
+static bool ensure_component(const char* name, bool report = true)
 {
     updater::component_t c = find_component(name);
     if (c.present)
@@ -208,12 +221,109 @@ static bool ensure_component(const char* name)
         std::this_thread::sleep_for(std::chrono::milliseconds(15));
     }
     worker.join();
-    if (!ok)
+    if (!ok && report)
     {
         const std::string what = std::string("natware couldn't download ") + name + ".exe: " + error;
         MessageBoxA(nullptr, what.c_str(), "natware", MB_OK | MB_ICONERROR | MB_TOPMOST);
     }
     return ok;
+}
+
+// ---- everything natware needs, fetched on the first start ----------------------------------
+// natware is meant to be a single exe that sets the rest up itself: the editor and the nexec
+// backend come from its GitHub releases, and the editor's page needs the Microsoft Edge
+// WebView2 runtime (already part of Windows 11 and of Edge), which is installed from Microsoft's
+// own bootstrapper when it's missing. Offline, or when nothing is released, this does nothing
+// and natware starts as before; the editor reports what it's missing when it's opened.
+static bool webview2_present()
+{
+    static const wchar_t* keys[] = {
+        L"SOFTWARE\\WOW6432Node\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+        L"SOFTWARE\\Microsoft\\EdgeUpdate\\Clients\\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}",
+    };
+    for (HKEY root : { HKEY_LOCAL_MACHINE, HKEY_CURRENT_USER })
+        for (const wchar_t* key : keys)
+        {
+            wchar_t version[64]{};
+            DWORD size = sizeof(version);
+            if (RegGetValueW(root, key, L"pv", RRF_RT_REG_SZ, nullptr, version, &size) == ERROR_SUCCESS
+                && version[0] && wcscmp(version, L"0.0.0.0") != 0)
+                return true;
+        }
+    return false;
+}
+
+static bool ensure_webview2()
+{
+    if (webview2_present())
+        return true;
+
+    wchar_t temp[MAX_PATH]{};
+    GetTempPathW(MAX_PATH, temp);
+    const std::wstring setup = std::wstring(temp) + L"natware_webview2_setup.exe";
+
+    std::atomic<bool> finished{ false };
+    bool ok = false;
+    std::thread worker([&]
+    {
+        // Microsoft's evergreen bootstrapper; it downloads and installs the runtime itself.
+        if (URLDownloadToFileW(nullptr, L"https://go.microsoft.com/fwlink/p/?LinkId=2124703", setup.c_str(), 0, nullptr) == S_OK)
+        {
+            std::wstring command = L"\"" + setup + L"\" /silent /install";
+            STARTUPINFOW si{ sizeof(si) };
+            PROCESS_INFORMATION pi{};
+            if (CreateProcessW(nullptr, command.data(), nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi))
+            {
+                WaitForSingleObject(pi.hProcess, 5 * 60 * 1000);
+                CloseHandle(pi.hThread);
+                CloseHandle(pi.hProcess);
+            }
+            else
+            {
+                // needs elevation: let Windows ask for it
+                SHELLEXECUTEINFOW sei{ sizeof(sei) };
+                sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+                sei.lpVerb = L"runas";
+                sei.lpFile = setup.c_str();
+                sei.lpParameters = L"/silent /install";
+                sei.nShow = SW_HIDE;
+                if (ShellExecuteExW(&sei) && sei.hProcess)
+                {
+                    WaitForSingleObject(sei.hProcess, 5 * 60 * 1000);
+                    CloseHandle(sei.hProcess);
+                }
+            }
+            DeleteFileW(setup.c_str());
+        }
+        ok = webview2_present();
+        finished = true;
+    });
+    while (!finished)
+    {
+        if (!wait_frame("Installing the WebView2 runtime"))
+        {
+            worker.detach();
+            quit_now();
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+    }
+    worker.join();
+    return ok;
+}
+
+static void ensure_dependencies()
+{
+    // Missing components first (only what's missing costs anything), then the runtime.
+    updater::component_t editor = find_component("editor");
+    updater::component_t backend = find_component("nexec");
+    if (!editor.present || !backend.present)
+    {
+        if (!editor.present)
+            ensure_component("editor", false);
+        if (!backend.present)
+            ensure_component("nexec", false);
+    }
+    ensure_webview2();
 }
 
 // A release that came out while the editor is open: asked once. "Yes" installs it now and
@@ -248,7 +358,7 @@ static int run_editor()
     if (!ensure_component("editor"))
     {
         if (!find_component("editor").present)
-            return fail("editor.exe isn't next to natware.exe, and no release of it was found to download.");
+            return fail("editor.exe isn't in natware's folder (%LOCALAPPDATA%\\natware\\bin), and no release of it was found to download.");
         return 1;
     }
     // The backend too, when it's missing and released (the editor also looks for a local build).
@@ -316,19 +426,25 @@ static int run_editor()
 
 int main()
 {
-    // Shells and shortcuts can launch us with an unrelated working directory.
-    // Keep existing relative asset/config paths anchored beside the executable.
+    // natware.exe can sit anywhere; everything else lives in the natware folder (paths.h), and the
+    // relative paths (data\, configs\) resolve there. The preview tests keep to the folder beside
+    // the exe so they never touch your real settings.
     wchar_t executable_path[32768]{};
     const DWORD executable_length = GetModuleFileNameW(nullptr, executable_path, 32768);
     if (executable_length > 0 && executable_length < 32768)
     {
         wchar_t* separator = wcsrchr(executable_path, L'\\');
         if (separator)
-        {
             *separator = L'\0';
-            SetCurrentDirectoryW(executable_path);
-        }
     }
+    if (strstr(GetCommandLineA(), "--preview"))
+        SetEnvironmentVariableW(L"NATWARE_ROOT", executable_path);
+    else
+        layout::adopt_from(executable_path);   // what an older natware kept beside the exe
+    const std::wstring natware_root = natware_paths::root();
+    SetCurrentDirectoryW(natware_root.c_str());
+    // The editor and nexec, started from here, use the same folder.
+    SetEnvironmentVariableW(L"NATWARE_ROOT", natware_root.c_str());
 
     // 1 ms timer resolution for the feature threads' short sleeps.
     timeBeginPeriod(1);
@@ -359,6 +475,7 @@ int main()
     {
         return fail("natware couldn't start: failed to create the window.");
     }
+    set_window_icon(render->detail->window);
 
     if (!render->create_device())
     {
@@ -377,6 +494,7 @@ int main()
 
     // Show the mode picker before attaching to Roblox
     render->running = true;
+    ensure_dependencies();
     SetWindowLong(render->detail->window, GWL_EXSTYLE, WS_EX_APPWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED);
     SetForegroundWindow(render->detail->window);
 
