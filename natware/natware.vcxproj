@@ -251,6 +251,7 @@
     <ClCompile Include="src\features\aimbot\aim_log.cpp" />
     <ClCompile Include="src\features\aimbot\aim_target.cpp" />
     <ClCompile Include="src\updater\updater.cpp" />
+    <ClCompile Include="src\layout.cpp" />
     <ClCompile Include="src\wallcheck\wallcheck.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -457,6 +458,8 @@
     <ClInclude Include="src\features\aimbot\aim_target.h" />
     <ClInclude Include="src\updater\updater.h" />
     <ClInclude Include="src\version.h" />
+    <ClInclude Include="src\paths.h" />
+    <ClInclude Include="src\layout.h" />
     <ClInclude Include="src\wallcheck\wallcheck.h" />
   </ItemGroup>
   <ItemGroup>

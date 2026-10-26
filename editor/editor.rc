@@ -1,7 +1,10 @@
-// editor.exe's version resource. natware reads ProductVersion to know which editor is installed.
-// The page (HTML, JS, CSS, font) comes from ..\natware\src\features\editor\editor_assets.rc.
+// editor.exe's icon and version resource. natware reads ProductVersion to know which editor is
+// installed. The page (HTML, JS, CSS, font) comes from ..\natware\src\features\editor\editor_assets.rc.
 #include <winresrc.h>
 #include "version.h"
+
+// The "n", the same icon as natware.exe. main.cpp also puts it on the editor window.
+1 ICON "..\\natware\\src\\natware.ico"
 
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION EDITOR_VERSION_RC

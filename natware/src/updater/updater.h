@@ -6,7 +6,8 @@
 //   natware.exe  this launcher and the overlay
 //   editor.exe   the script editor (natware starts it)
 //   nexec.exe    the editor's backend (the editor starts it)
-// They live side by side, and each is released on its own in the same repository: tags
+// natware.exe stays wherever you put it; the editor and nexec live in the natware folder's bin\
+// (paths.h). Each is released on its own in the same repository: tags
 // "v1.2.0" for natware (the tags older natware versions already look for), "editor-v1.2.0" and
 // "nexec-v1.2.0" for the others. A release carries the exe as an asset and its SHA-256 (GitHub's
 // asset digest, or a "sha256: <hex>" line in the notes; with several exes in one release, a
@@ -65,7 +66,7 @@ namespace updater
 	status_t status();
 	std::vector<component_t> components();
 	void select(const std::string& name, bool on);
-	std::wstring path_of(const std::string& name);   // where a component's exe lives
+	std::wstring path_of(const std::string& name);   // where a component's exe lives (bin\, or natware.exe itself)
 
 	void cleanup();                    // at startup: reads what's installed, removes what an earlier update left behind
 	void check_async();                // starts the background checks (once per run)

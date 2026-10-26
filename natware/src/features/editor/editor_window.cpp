@@ -2,6 +2,9 @@
 #include "editor_diagnostics.h"
 #include "nexec_bridge.h"
 #include "nexec_loader.h"
+#include "client_manager.h"
+#include "editor_files.h"
+#include "../../paths.h"
 #include "../../../ext/json/json.hpp"
 #include <atomic>
 #include <memory>
@@ -10,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <vector>
 #include <cstdio>
 #include <windowsx.h>
 #include <wrl/client.h>
@@ -37,9 +41,7 @@ static bool s_closing = false;
 static constexpr UINT_PTR kCloseTimer = 1;
 static constexpr UINT_PTR kNexecTimer = 2;
 static constexpr UINT kPostToPage = WM_APP + 1;   // wake the current session's owned mailbox
-static constexpr UINT kNexecPoll = WM_APP + 2;    // background availability result (wParam = 0/1)
 static constexpr int kTopResize = 5;   // the page covers the top edge; this strip still resizes
-static int s_nexec_seen = -1;          // last nexec state sent to the page; -1 sends the next one
 static std::atomic<bool> s_checking{false};
 struct EditorSession {
     std::mutex mutex;
@@ -112,15 +114,64 @@ static void post_to_page(const nlohmann::json& message)
         editor_diagnostics::result("webview.post_message", s_webview->PostWebMessageAsJson(to_wide(message.dump()).c_str()));
 }
 
-static void send_nexec_state(bool force, const std::string& request_id = {})
+// The page's view of every Roblox client plus the one summary the toolbar needs (is the client the
+// toolbar acts on really attached). Runs on a worker thread: it probes the backends' ports.
+static nlohmann::json clients_json(const std::vector<client_manager::Client>& clients)
 {
-    const int now = nexec_bridge::available() ? 1 : 0;
-    if (!force && now == s_nexec_seen)
-        return;
-    if (now != s_nexec_seen)
-        editor_diagnostics::write("info", "connection.tcp", {{"tcpAvailable", now == 1}, {"executionReady", "unknown"}});
-    s_nexec_seen = now;
-    post_to_page({ { "type", "nexec" }, { "connected", now == 1 }, {"requestId", request_id}, {"executionReady", "unknown"} });
+    nlohmann::json list = nlohmann::json::array();
+    for (const auto& client : clients)
+    {
+        const auto& st = client.status;
+        list.push_back({
+            {"pid", client.pid}, {"port", st.port}, {"up", st.up}, {"attached", st.attached},
+            {"inGame", st.inGame}, {"injectFailed", st.injectFailed}, {"launching", client.launching}, {"error", client.error},
+            {"name", st.name}, {"userId", st.userId}, {"display", st.display}, {"avatar", st.avatar},
+            {"placeId", st.placeId}, {"jobId", st.jobId},
+        });
+    }
+    return list;
+}
+
+static void publish_clients(const std::shared_ptr<EditorSession>& session, const std::string& request_id = {})
+{
+    const auto clients = client_manager::refresh();
+    const unsigned long primary = client_manager::resolve_primary(clients);
+    bool connected = false;
+    for (const auto& client : clients)
+        if (client.pid == primary)
+            connected = client.status.attached;
+
+    static std::atomic<int> seen{-1};
+    const int now = connected ? 1 : 0;
+    if (seen.exchange(now) != now)
+        editor_diagnostics::write("info", "connection.attached", {{"attached", connected}, {"clients", clients.size()}});
+
+    worker_post(session, nlohmann::json{ {"type", "clients"}, {"selected", primary}, {"clients", clients_json(clients)} }.dump());
+    worker_post(session, nlohmann::json{ {"type", "nexec"}, {"connected", connected}, {"requestId", request_id}, {"executionReady", "unknown"} }.dump());
+}
+
+// Starts the backend for a client and waits until it reports the injected script alive.
+static bool attach_and_wait(unsigned long pid, std::string& error)
+{
+    if (!client_manager::attach(pid, error))
+        return false;
+    // up to a minute: a cold start has to attach to Roblox, wait for the game and inject
+    for (int i = 0; i < 120; ++i)
+    {
+        if (client_manager::is_attached(pid))
+            return true;
+        bool running = false;
+        for (const auto& client : client_manager::refresh())
+            running = running || client.pid == pid;
+        if (!running)
+        {
+            error = "Roblox closed";
+            return false;
+        }
+        Sleep(500);
+    }
+    error = "Injected but the script never came up. Join a game and try again.";
+    return false;
 }
 
 // Execute, attach and status requests from the page. Execute runs on a worker so a slow nexec
@@ -166,87 +217,122 @@ static void handle_page_request(const std::wstring& text)
     }
     else if (type == "nexec:status")
     {
-        if (!s_checking.exchange(true)) {
-            const HWND target = s_hwnd;
-            std::thread([target]() {
-                const bool up = nexec_bridge::available();
+        if (s_session && !s_checking.exchange(true)) {
+            const auto session = s_session;
+            std::thread([session, request_id]() {
+                try { publish_clients(session, request_id); } catch (...) {}
                 s_checking.store(false, std::memory_order_release);
-                PostMessageW(target, kNexecPoll, up ? 1 : 0, 0);
             }).detach();
-        } else {
-            post_to_page({ { "type", "nexec" }, { "connected", s_nexec_seen == 1 }, {"requestId", request_id}, {"executionReady", "unknown"} });
         }
     }
     else if (type == "nexec:attach")
     {
-        if (nexec_bridge::available())
-        {
-            send_nexec_state(true, request_id);
-        }
-        else if (s_session && !s_session->attaching.exchange(true))
+        const unsigned long wanted = request.contains("pid") && request["pid"].is_number_unsigned() ? request["pid"].get<unsigned long>() : 0;
+        if (s_session && !s_session->attaching.exchange(true))
         {
             const auto session = s_session;
             post_to_page({ { "type", "nexec:injecting" }, {"requestId", request_id} });
-            try { std::thread([session, request_id]() {
+            try { std::thread([session, request_id, wanted]() {
                 editor_diagnostics::RequestScope diagnostic_request(request_id);
                 std::string error;
                 const auto started = GetTickCount64();
-                bool injected = false;
-                bool connected = false;
-                try { injected = nexec_loader::inject(error);
-                if (injected)
-                {
-                    // Same cold-start allowance here: up to a minute for the engine's port.
-                    for (int i = 0; i < 120 && !connected; ++i)
-                    {
-                        Sleep(500);
-                        connected = nexec_bridge::available();
+                bool attached = false;
+                try {
+                    const auto clients = client_manager::refresh();
+                    const unsigned long pid = wanted ? wanted : client_manager::resolve_primary(clients);
+                    if (pid == 0) error = "Roblox is not running";
+                    else {
+                        client_manager::select(pid);
+                        attached = client_manager::is_attached(pid) || attach_and_wait(pid, error);
                     }
-                    if (!connected)
-                        error = "Injected but the backend didn't start";
-                }
                 } catch (const std::exception& exception) { error = exception.what(); }
                 catch (...) { error = "Connection worker failed with an unknown exception"; }
-                nlohmann::json reply{
-                    { "type", "nexec:injected" },
-                    { "ok", injected && connected },
-                    { "error", error }, {"requestId", request_id}
-                };
-                editor_diagnostics::write(connected ? "info" : "error", "connection.result", {{"requestId", request_id}, {"tcpAvailable", connected}, {"error", error}, {"elapsedMs", GetTickCount64() - started}});
+                editor_diagnostics::write(attached ? "info" : "error", "connection.result", {{"requestId", request_id}, {"attached", attached}, {"error", error}, {"elapsedMs", GetTickCount64() - started}});
                 session->attaching.store(false, std::memory_order_release);
-                worker_post(session, reply.dump());
-                nlohmann::json state{ { "type", "nexec" }, { "connected", connected } };
-                worker_post(session, state.dump());
+                worker_post(session, nlohmann::json{ { "type", "nexec:injected" }, { "ok", attached }, { "error", error }, {"requestId", request_id} }.dump());
+                try { publish_clients(session); } catch (...) {}
             }).detach(); }
             catch (...) { session->attaching = false; throw; }
         }
         else post_to_page({{"type", "editor:error"}, {"requestId", request_id}, {"error", "A connection request is already pending"}});
     }
+    else if (type == "clients:select" || type == "clients:attach" || type == "clients:detach")
+    {
+        const unsigned long pid = request.contains("pid") && request["pid"].is_number_unsigned() ? request["pid"].get<unsigned long>() : 0;
+        const auto session = s_session;
+        if (!session || pid == 0) { post_to_page({{"type", type}, {"requestId", request_id}, {"ok", false}, {"error", "No client given"}}); return; }
+        std::thread([session, type, pid, request_id]() {
+            std::string error;
+            bool ok = false;
+            try {
+                if (type == "clients:select") { client_manager::select(pid); ok = true; }
+                else if (type == "clients:attach") { client_manager::select(pid); ok = client_manager::is_attached(pid) || attach_and_wait(pid, error); }
+                else ok = client_manager::detach(pid, error);
+            } catch (const std::exception& exception) { error = exception.what(); }
+            catch (...) { error = "The client request failed"; }
+            worker_post(session, nlohmann::json{ {"type", type}, {"requestId", request_id}, {"ok", ok}, {"error", error}, {"pid", pid} }.dump());
+            try { publish_clients(session); } catch (...) {}
+        }).detach();
+    }
     else if (type == "nexec:execute")
     {
         std::string source = field("source", 2 * 1024 * 1024);
         const std::string name = field("name", 512);
+        // "selected" (default), "all" attached clients, or one pid
+        std::string target = "selected";
+        unsigned long target_pid = 0;
+        if (request.contains("target")) {
+            if (request["target"].is_string()) target = request["target"].get<std::string>();
+            else if (request["target"].is_number_unsigned()) { target = "pid"; target_pid = request["target"].get<unsigned long>(); }
+        }
         if (!s_session || s_session->executing.exchange(true)) {
             post_to_page({{"type", "editor:error"}, {"requestId", request_id}, {"error", "An execute request is already pending"}}); return;
         }
         const auto session = s_session;
-        try { std::thread([session, request_id, source = std::move(source), name]() {
+        try { std::thread([session, request_id, source = std::move(source), name, target, target_pid]() {
             editor_diagnostics::RequestScope diagnostic_request(request_id);
             std::string error;
             const auto started = GetTickCount64();
-            editor_diagnostics::write("info", "execute.started", {{"requestId", request_id}, {"bytes", source.size()}});
+            editor_diagnostics::write("info", "execute.started", {{"requestId", request_id}, {"bytes", source.size()}, {"target", target}});
             bool ok = false;
-            try { ok = !source.empty() && nexec_bridge::execute(source, error); }
+            size_t sent = 0;
+            try {
+                if (source.empty()) error = "This tab is empty";
+                else {
+                    const auto clients = client_manager::refresh();
+                    std::vector<const client_manager::Client*> picked;
+                    if (target == "all") {
+                        for (const auto& client : clients) if (client.status.attached) picked.push_back(&client);
+                        if (picked.empty()) error = "No client is attached";
+                    } else {
+                        const unsigned long pid = target == "pid" ? target_pid : client_manager::resolve_primary(clients);
+                        for (const auto& client : clients) if (client.pid == pid) picked.push_back(&client);
+                        if (picked.empty()) error = "Roblox is not running";
+                        else if (!picked.front()->status.attached) { picked.clear(); error = "Not attached: join a game, then press Attach"; }
+                    }
+                    for (const auto* client : picked) {
+                        std::string one;
+                        if (nexec_bridge::execute(client->status.port, client->pid, source, one)) ++sent;
+                        else error += (error.empty() ? "" : "; ") + std::string(picked.size() > 1 ? "pid " + std::to_string(client->pid) + ": " : "") + one;
+                    }
+                    ok = sent > 0 && sent == picked.size();
+                }
+            }
             catch (const std::exception& exception) { error = exception.what(); }
             catch (...) { error = "Execute worker failed with an unknown exception"; }
-            if (source.empty())
-                error = "This tab is empty";
-            nlohmann::json reply{ { "type", "nexec:executed" }, { "ok", ok }, { "name", name }, { "error", error }, {"requestId", request_id}, {"state", ok ? "tcp_sent" : "failed"}, {"executionConfirmed", false} };
+            nlohmann::json reply{ { "type", "nexec:executed" }, { "ok", ok }, { "name", name }, { "error", error }, {"requestId", request_id}, {"state", ok ? "tcp_sent" : "failed"}, {"executionConfirmed", false}, {"count", sent} };
             editor_diagnostics::write(ok ? "warning" : "error", "execute.result", {{"requestId", request_id}, {"state", ok ? "tcp_sent" : "failed"}, {"executionConfirmed", false}, {"error", error}, {"elapsedMs", GetTickCount64() - started}});
             session->executing.store(false, std::memory_order_release);
             worker_post(session, reply.dump());
         }).detach(); }
         catch (...) { session->executing = false; throw; }
+    }
+    else if (type.rfind("files:", 0) == 0)
+    {
+        // The Explorer's workspace\ and autoexec\ folders (editor_files.cpp).
+        nlohmann::json reply = editor_files::handle(type, request);
+        reply["requestId"] = request_id;
+        post_to_page(reply);
     }
     else editor_diagnostics::write("warning", "request.unknown_type", {{"type", type}});
 }
@@ -302,21 +388,11 @@ static void serve_asset(ICoreWebView2WebResourceRequestedEventArgs* args)
     args->put_Response(response.Get());
 }
 
-// The editor's storage (scripts, tabs, favourites) lives in data\webview beside the exe.
-// config::organize_folders moves the old <exe>.WebView2 folder there; if that folder was busy,
-// it is used where it is.
+// The editor's storage (scripts, tabs, favourites) lives in the natware folder's data\webview
+// (paths.h); natware moves an older one there from beside its exe.
 static std::wstring user_data_folder()
 {
-    wchar_t exe[MAX_PATH]{};
-    GetModuleFileNameW(nullptr, exe, MAX_PATH);
-    std::wstring dir(exe);
-    dir.resize(dir.find_last_of(L'\\') + 1);
-    const std::wstring current = dir + L"data\\webview";
-    const std::wstring legacy = std::wstring(exe) + L".WebView2";
-    if (GetFileAttributesW(current.c_str()) == INVALID_FILE_ATTRIBUTES && GetFileAttributesW(legacy.c_str()) != INVALID_FILE_ATTRIBUTES)
-        return legacy;
-    if (!CreateDirectoryW((dir + L"data").c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
-        editor_diagnostics::write("error", "webview.profile_directory_failed", {{"win32", GetLastError()}});
+    const std::wstring current = natware_paths::data() + L"webview";
     editor_diagnostics::write("info", "webview.profile", {{"path", to_utf8(current)}});
     return current;
 }
@@ -424,12 +500,11 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
         if (wp == kNexecTimer)
         {
-            if (!s_checking.exchange(true)) {
-                const HWND target = hwnd;
-                std::thread([target]() {
-                    const bool up = nexec_bridge::available();
+            if (s_session && !s_checking.exchange(true)) {
+                const auto session = s_session;
+                std::thread([session]() {
+                    try { publish_clients(session); } catch (...) {}
                     s_checking.store(false, std::memory_order_release);
-                    PostMessageW(target, kNexecPoll, up ? 1 : 0, 0);
                 }).detach();
             }
             return 0;
@@ -446,16 +521,6 @@ static LRESULT CALLBACK wnd_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         for (const auto& message : messages)
             if (s_webview && !s_closing)
                 editor_diagnostics::result("worker.deliver", s_webview->PostWebMessageAsJson(to_wide(message).c_str()));
-        return 0;
-    }
-
-    case kNexecPoll:
-    {
-        const int now = static_cast<int>(wp);
-        if (now != s_nexec_seen)
-            editor_diagnostics::write("info", "connection.tcp", {{"tcpAvailable", now == 1}, {"executionReady", "unknown"}});
-        s_nexec_seen = now;
-        post_to_page({ { "type", "nexec" }, { "connected", now == 1 }, {"requestId", ""}, {"executionReady", "unknown"} });
         return 0;
     }
 
@@ -515,7 +580,6 @@ bool create()
     s_closing = false;
     s_session = std::make_shared<EditorSession>();
     s_session->hwnd = s_hwnd;
-    s_nexec_seen = -1;
     SetTimer(s_hwnd, kNexecTimer, 3000, nullptr);
 
     const HWND hwnd = s_hwnd;
@@ -686,22 +750,17 @@ bool is_alive() { return s_alive && s_hwnd; }
 
 void trigger_attach()
 {
-    if (nexec_bridge::available()) return;
     if (!s_session || s_session->attaching.exchange(true)) return;
     const auto session = s_session;
     std::thread([session]() {
         std::string error;
-        bool injected = false;
-        bool connected = false;
         try {
-            injected = nexec_loader::inject(error);
-            if (injected) {
-                // A cold first launch (Roblox attach + Luau bootstrap) can take a
-                // while before the engine binds its port; poll up to a minute.
-                for (int i = 0; i < 120 && !connected; ++i) {
-                    Sleep(500);
-                    connected = nexec_bridge::available();
-                }
+            const auto clients = client_manager::refresh();
+            const unsigned long pid = client_manager::resolve_primary(clients);
+            if (pid != 0) {
+                client_manager::select(pid);
+                if (!client_manager::is_attached(pid))
+                    attach_and_wait(pid, error);
             }
         } catch (...) {}
         session->attaching.store(false, std::memory_order_release);

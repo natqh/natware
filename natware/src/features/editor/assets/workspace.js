@@ -8,6 +8,8 @@ const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
 
 // ---- icons: Lucide (lucide-static 0.460.0, ISC), the set the external menu draws -------------
 const ICONS = {
+  'monitor': '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+  'unplug': '<path d="m19 5 3-3"/><path d="m2 22 3-3"/><path d="M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z"/><path d="M7.5 13.5 10 11"/><path d="M10.5 16.5 13 14"/><path d="m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z"/>',
   'badge-check': '<path d="M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z"/><path d="m9 12 2 2 4-4"/>',
   'calendar': '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>',
   'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
@@ -42,6 +44,13 @@ const ICONS = {
   'star': '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
   'trash-2': '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   'x': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'arrow-down': '<path d="M12 5v14"/><path d="m19 12-7 7-7-7"/>',
+  'external-link': '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  'file': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>',
+  'file-code': '<path d="M10 12.5 8 15l2 2.5"/><path d="m14 12.5 2 2.5-2 2.5"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/>',
+  'file-plus': '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M9 15h6"/><path d="M12 18v-6"/>',
+  'folder': '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  'grip-vertical': '<circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/>',
 };
 function icon(name) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -82,9 +91,12 @@ let custom = Array.isArray(saved.custom) ? saved.custom.filter(s => s && typeof 
 let favorites = new Set(Array.isArray(saved.favorites) ? saved.favorites : []);
 // Snapshots of starred ScriptBlox scripts, so Favorites shows them without going online.
 let starred = saved.starred && typeof saved.starred === 'object' ? saved.starred : {};
-let prefs = { fontSize: 14, wordWrap: false, minimap: false, smooth: true, ...(saved.prefs || {}) };
+let prefs = { fontSize: 14, wordWrap: false, minimap: false, smooth: true, autoexec: true, ...(saved.prefs || {}) };
 prefs.fontSize = Number.isFinite(Number(prefs.fontSize)) ? Math.max(10, Math.min(28, Number(prefs.fontSize))) : 14;
-for (const key of ['wordWrap', 'minimap', 'smooth']) prefs[key] = typeof prefs[key] === 'boolean' ? prefs[key] : key === 'smooth';
+for (const key of ['wordWrap', 'minimap', 'smooth', 'autoexec']) prefs[key] = typeof prefs[key] === 'boolean' ? prefs[key] : key === 'smooth' || key === 'autoexec';
+// The Explorer's folded groups and where the floating action bar was left.
+let explorerState = { collapsed: {}, ...(saved.explorer && typeof saved.explorer === 'object' ? saved.explorer : {}) };
+let toolbarPos = saved.toolbar && Number.isFinite(saved.toolbar.left) && Number.isFinite(saved.toolbar.top) ? saved.toolbar : null;
 const savedHub = saved.hub && typeof saved.hub === 'object' ? saved.hub : {};
 let hubPrefs = { sort: 'views', access: 'any', status: 'any', scope: 'any', price: 'free', verified: false };
 for (const k of ['sort', 'access', 'status', 'scope', 'price']) if (typeof savedHub[k] === 'string') hubPrefs[k] = savedHub[k];
@@ -107,7 +119,7 @@ function writeStore() {
   clearTimeout(storeTimer);
   storeTimer = 0;
   try {
-    localStorage.setItem(STORE, JSON.stringify({ tabs, activeId, custom, favorites: [...favorites], starred, prefs, hub: hubPrefs, consoleCollapsed }));
+    localStorage.setItem(STORE, JSON.stringify({ tabs, activeId, custom, favorites: [...favorites], starred, prefs, hub: hubPrefs, consoleCollapsed, explorer: explorerState, toolbar: toolbarPos }));
     if (storageWriteFailed) log('Workspace storage is available again', 'info', 'storage.recovered');
     storageWriteFailed = false;
     return true;
@@ -208,6 +220,12 @@ function renderLogView(view) {
   const items = logs.filter(e => view.filter() === 'all' || e.level === view.filter());
   view.host.replaceChildren(...(items.length ? items.map(e => logRow(e, false)) : [logEmpty()]));
   view.host.scrollTop = view.host.scrollHeight;
+  applyOutputFind();
+}
+// "Find in output" narrows the panel under the code to the lines containing the text.
+function applyOutputFind() {
+  const q = ($('#output-find')?.value || '').trim().toLowerCase();
+  $$('.log-row', logViews[0].host).forEach(r => r.classList.toggle('filtered', !!q && !r.textContent.toLowerCase().includes(q)));
 }
 function log(text, level = 'info', event = 'console.message', details = {}) {
   if (!diagnostics.record(level, event, String(text), details))
@@ -224,6 +242,7 @@ function appendConsole(e) {
     while (v.host.firstElementChild && Number(v.host.firstElementChild.dataset.seq) < (logs[0].seq || 0)) v.host.firstElementChild.remove();
     if (stick) v.host.scrollTop = v.host.scrollHeight;
   }
+  applyOutputFind();
 }
 window.addEventListener('natware:diagnostic', e => {
   if (e.detail.event !== 'console.cleared') appendConsole(e.detail);
@@ -248,14 +267,18 @@ function setConsoleCollapsed(collapsed) {
   consoleCollapsed = collapsed;
   $('#inline-console').classList.toggle('collapsed', collapsed);
   $('#toggle-console').setAttribute('aria-expanded', String(!collapsed));
-  $('#toggle-console').title = collapsed ? 'Expand console' : 'Collapse console';
+  for (const id of ['#toggle-console', '#collapse-console']) $(id).title = collapsed ? 'Expand output' : 'Collapse output';
   persist();
 }
 $('#toggle-console').addEventListener('click', () => setConsoleCollapsed(!consoleCollapsed));
+$('#collapse-console').addEventListener('click', () => setConsoleCollapsed(!consoleCollapsed));
 $('#expand-console').addEventListener('click', () => showPage('console'));
+$('#output-bottom').addEventListener('click', () => { const h = logViews[0].host; h.scrollTo({ top: h.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' }); });
+$('#output-find').addEventListener('input', applyOutputFind);
+$('#output-find').addEventListener('keydown', e => { if (e.key === 'Escape' && e.target.value) { e.stopPropagation(); e.target.value = ''; applyOutputFind(); } });
 
 // ---- navigation ------------------------------------------------------------------------------
-const TITLES = { editor: 'Editor', hub: 'Script hub', console: 'Console' };
+const TITLES = { editor: 'Editor', hub: 'Script hub', console: 'Console', clients: 'Clients' };
 function moveNavIndicator() {
   const current = $(`.nav[data-page="${currentPage}"]`);
   $('.nav-indicator').style.setProperty('--y', current.offsetTop + 'px');
@@ -268,14 +291,11 @@ function showPage(page) {
   $$('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
   $$('.nav[data-page]').forEach(n => n.dataset.page === page ? n.setAttribute('aria-current', 'page') : n.removeAttribute('aria-current'));
   moveNavIndicator();
-  const title = $('#page-title');
-  if (changed && !reducedMotion()) {
-    title.classList.add('swap');
-    setTimeout(() => { title.textContent = TITLES[page]; title.classList.remove('swap'); }, 120);
-  } else title.textContent = TITLES[page];
+  document.title = changed && page !== 'editor' ? 'natware · ' + TITLES[page] : 'natware';
   if (page !== 'hub') { closeDrawer(); setFilterPanel(false); }
   if (page === 'hub') hubShown();
   if (page === 'console') { const h = logViews[1].host; h.scrollTop = h.scrollHeight; }
+  if (page === 'clients') sendNexec({ type: 'nexec:status' }, true);
   if (page === 'editor' && ed) requestAnimationFrame(() => ed.layout());
 }
 $$('.nav[data-page]').forEach(b => b.addEventListener('click', () => showPage(b.dataset.page)));
@@ -292,6 +312,7 @@ function moveTabIndicator(instant = false) {
   if (left < host.scrollLeft) host.scrollLeft = left;
   else if (right > host.scrollLeft + host.clientWidth) host.scrollLeft = right - host.clientWidth;
 }
+const isScript = name => /\.(lua|luau)$/i.test(name || '');
 function renderTabs(instant = false) {
   const host = $('#tabs'), bar = host.querySelector('.tab-indicator');
   const items = tabs.map(t => {
@@ -299,27 +320,97 @@ function renderTabs(instant = false) {
     tab.setAttribute('role', 'tab');
     tab.setAttribute('aria-selected', String(t.id === activeId));
     tab.tabIndex = t.id === activeId ? 0 : -1;
-    tab.title = t.name;
+    tab.title = t.file ? `${t.file.group}/${t.file.rel}\nRight-click to rename` : t.name + '\nRight-click to rename';
+    tab.draggable = true;
     const close = el('span', 'tab-close');
     close.setAttribute('role', 'button');
     close.setAttribute('aria-label', 'Close ' + t.name);
     close.title = 'Close (Ctrl+W)';
     close.append(icon('x'));
     close.addEventListener('click', e => { e.stopPropagation(); closeTab(t.id); });
-    tab.append(el('span', 'tab-name', t.name), close);
+    const name = el('span', 'tab-name', t.name);
+    tab.append(icon(isScript(t.name) ? 'file-code' : 'file'), name, close);
     tab.addEventListener('click', () => selectTab(t.id));
     tab.addEventListener('auxclick', e => { if (e.button === 1) { e.preventDefault(); closeTab(t.id); } });
+    // Right-click (or double-click) the name to rename the tab, and its file when it has one.
+    tab.addEventListener('contextmenu', e => { e.preventDefault(); if (t.id !== activeId) selectTab(t.id, false); startRename(t.id); });
+    tab.addEventListener('dblclick', e => { if (!e.target.closest('.tab-close')) startRename(t.id); });
     tab.addEventListener('keydown', e => {
+      if (e.target !== tab) return;
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectTab(t.id); }
+      if (e.key === 'F2') { e.preventDefault(); startRename(t.id); }
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         const i = tabs.findIndex(x => x.id === t.id) + (e.key === 'ArrowRight' ? 1 : -1);
         if (tabs[i]) { selectTab(tabs[i].id, false); $('#tabs .tab.active')?.focus(); }
       }
     });
+    // Drag a tab onto another to move it there.
+    tab.addEventListener('dragstart', e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/natware-tab', t.id); tab.classList.add('dragging'); });
+    tab.addEventListener('dragend', () => { tab.classList.remove('dragging'); $$('#tabs .tab').forEach(x => x.classList.remove('drag-over')); });
+    tab.addEventListener('dragover', e => { if (e.dataTransfer.types.includes('text/natware-tab')) { e.preventDefault(); tab.classList.add('drag-over'); } });
+    tab.addEventListener('dragleave', () => tab.classList.remove('drag-over'));
+    tab.addEventListener('drop', e => {
+      e.preventDefault(); tab.classList.remove('drag-over');
+      const from = tabs.findIndex(x => x.id === e.dataTransfer.getData('text/natware-tab')), to = tabs.findIndex(x => x.id === t.id);
+      if (from < 0 || to < 0 || from === to) return;
+      tabs.splice(to, 0, tabs.splice(from, 1)[0]);
+      renderTabs(); persist();
+    });
     return tab;
   });
   host.replaceChildren(bar, ...items);
   requestAnimationFrame(() => moveTabIndicator(instant));
+  renderExplorer();
+  renderLanguage();
+}
+function renderLanguage() {
+  const t = active();
+  $('#status-language').textContent = t && !isScript(t.name) && /\.txt$/i.test(t.name) ? 'Plain text' : 'Luau';
+}
+
+// Renaming in place: the name turns into a field; Enter or clicking away keeps it, Esc doesn't.
+function startRename(id) {
+  const t = tabs.find(x => x.id === id);
+  const tab = $$('#tabs .tab')[tabs.indexOf(t)];
+  if (!t || !tab || tab.querySelector('.tab-rename')) return;
+  const input = el('input', 'tab-rename');
+  input.value = t.name;
+  input.spellcheck = false;
+  input.maxLength = 80;
+  tab.draggable = false;
+  tab.querySelector('.tab-name').replaceWith(input);
+  input.focus();
+  // Select the name without its extension, the way Explorer does.
+  const dot = t.name.lastIndexOf('.');
+  input.setSelectionRange(0, dot > 0 ? dot : t.name.length);
+  let done = false;
+  const finish = async keep => {
+    if (done) return;
+    done = true;
+    let next = input.value.trim().replace(/[\\/:*?"<>|]+/g, '');
+    if (!keep || !next || next === t.name) { renderTabs(); return; }
+    if (t.file) {
+      // A tab from the Explorer renames its file too; it keeps a script extension.
+      if (!/\.(lua|luau|txt)$/i.test(next)) next += (t.name.match(/\.(lua|luau|txt)$/i) || ['.lua'])[0];
+      const slash = t.file.rel.lastIndexOf('/');
+      const rel = (slash >= 0 ? t.file.rel.slice(0, slash + 1) : '') + next;
+      const r = await hostCall('files:rename', { group: t.file.group, rel: t.file.rel, to: rel });
+      if (!r.ok) { toast(r.error || 'The file could not be renamed', 'info'); renderTabs(); return; }
+      t.file = { group: t.file.group, rel };
+      refreshFiles();
+    }
+    log(`Renamed ${t.name} to ${next}`);
+    t.name = next;
+    renderTabs(); persist();
+  };
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('mousedown', e => e.stopPropagation());
+  input.addEventListener('click', e => e.stopPropagation());
 }
 $('#tabs').addEventListener('wheel', e => {
   if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.currentTarget.scrollLeft += e.deltaY; e.preventDefault(); }
@@ -336,8 +427,8 @@ function selectTab(id, focusEditor = true) {
   renderTabs();
   persist();
 }
-function newTab(source = '', name = 'Untitled.lua', hubId = null) {
-  const tab = { id: crypto.randomUUID(), name, source, hubId };
+function newTab(source = '', name = 'Untitled.lua', hubId = null, file = null) {
+  const tab = { id: crypto.randomUUID(), name, source, hubId, ...(file ? { file } : {}) };
   tabs.push(tab);
   selectTab(tab.id);
   showPage('editor');
@@ -478,6 +569,216 @@ function confirmAction(title, message, label, callback) {
 }
 $('#confirm-form').addEventListener('submit', e => { e.preventDefault(); closeDialog($('#confirm-dialog'), 'confirm'); });
 
+// ---- Explorer: the scripts in the natware folder's workspace\ and autoexec\ ------------------------
+const GROUPS = [
+  { id: 'workspace', label: 'Workspace', hint: 'Your scripts. Click one to open it.' },
+  { id: 'autoexec', label: 'Autoexec', hint: 'Runs after every attach.' },
+];
+let folderFiles = { workspace: [], autoexec: [] }, filesLoaded = false, filesError = '';
+function fileKey(f) { return f ? f.group + '/' + f.rel : ''; }
+function renderExplorer() {
+  const host = $('#file-list');
+  if (!host) return;
+  const q = $('#explorer-search').value.trim().toLowerCase();
+  const openKey = fileKey(active()?.file);
+  host.replaceChildren(...GROUPS.map(g => {
+    const group = el('div', 'file-group' + (explorerState.collapsed[g.id] && !q ? ' collapsed' : ''));
+    group.setAttribute('role', 'treeitem');
+    const head = el('div', 'group-head');
+    head.title = g.hint;
+    const chevron = el('i', 'chevron'); chevron.append(icon('chevron-down'));
+    const folder = el('i', 'folder'); folder.append(icon('folder'));
+    const files = folderFiles[g.id].filter(f => !q || f.rel.toLowerCase().includes(q));
+    const count = el('span', 'group-count', filesLoaded ? String(folderFiles[g.id].length || '') : '');
+    const actions = el('span', 'group-actions');
+    const add = el('button', 'icon-button'); add.append(icon('file-plus')); add.title = 'New script in ' + g.label;
+    add.addEventListener('click', e => { e.stopPropagation(); openFileDialog(g); });
+    const reveal = el('button', 'icon-button'); reveal.append(icon('external-link')); reveal.title = 'Show the folder in File Explorer';
+    reveal.addEventListener('click', e => { e.stopPropagation(); hostCall('files:reveal', { group: g.id }).then(r => { if (!r.ok) toast(r.error || 'The folder could not be opened', 'info'); }); });
+    actions.append(add, reveal);
+    head.append(chevron, folder, el('span', 'group-label', g.label), count, actions);
+    head.addEventListener('click', () => {
+      explorerState.collapsed[g.id] = !explorerState.collapsed[g.id];
+      group.classList.toggle('collapsed', explorerState.collapsed[g.id] && !q);
+      persist();
+    });
+    const items = el('div', 'group-items'), inner = el('div');
+    if (!filesLoaded) inner.append(el('div', 'file-empty', filesError || 'Loading…'));
+    else if (!files.length) inner.append(el('div', 'file-empty', q ? 'No matches' : 'Empty'));
+    for (const f of files) {
+      const item = el('button', 'file-item' + (fileKey({ group: g.id, rel: f.rel }) === openKey ? ' open' : ''));
+      item.title = f.rel;
+      item.append(icon(isScript(f.name) ? 'file-code' : 'file'), el('span', '', f.rel));
+      item.addEventListener('click', () => openFolderFile(g.id, f));
+      inner.append(item);
+    }
+    items.append(inner);
+    group.append(head, items);
+    return group;
+  }));
+}
+async function refreshFiles() {
+  const r = await hostCall('files:list');
+  if (r.ok && Array.isArray(r.groups)) {
+    for (const g of r.groups) if (g && folderFiles[g.id] && Array.isArray(g.files)) folderFiles[g.id] = g.files.filter(f => f && typeof f.rel === 'string');
+    filesLoaded = true; filesError = '';
+  } else if (!filesLoaded) filesError = nexecHost ? (r.error || 'The folders could not be read') : 'Open the editor from natware to list your scripts';
+  renderExplorer();
+}
+async function openFolderFile(group, f) {
+  const existing = tabs.find(t => t.file && t.file.group === group && t.file.rel === f.rel);
+  if (existing) { selectTab(existing.id); showPage('editor'); return; }
+  const r = await hostCall('files:read', { group, rel: f.rel });
+  if (!r.ok) { toast(r.error || 'The file could not be opened', 'info'); refreshFiles(); return; }
+  newTab(r.source || '', f.name, null, { group, rel: f.rel });
+  log('Opened ' + group + '/' + f.rel, 'info', 'file.opened', { group });
+}
+let fileDialogGroup = null;
+function openFileDialog(g) {
+  fileDialogGroup = g;
+  $('#file-title').textContent = 'New script in ' + g.label;
+  $('#file-name').value = 'script.lua';
+  $('#file-error').hidden = true;
+  $('#file-name').closest('.field').classList.remove('invalid');
+  openDialog($('#file-dialog'));
+  $('#file-name').setSelectionRange(0, 6);
+}
+$('#file-name').addEventListener('input', () => { $('#file-error').hidden = true; $('#file-name').closest('.field').classList.remove('invalid'); });
+$('#file-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  let name = $('#file-name').value.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (name && !/\.(lua|luau|txt)$/i.test(name)) name += '.lua';
+  const fail = text => { $('#file-error').textContent = text; $('#file-error').hidden = false; $('#file-name').closest('.field').classList.add('invalid'); $('#file-name').focus(); };
+  if (!name || /(^|\/)\.\.?(\/|$)/.test(name) || /[:*?"<>|]/.test(name)) { fail('Give the script a name (letters, numbers, spaces).'); return; }
+  const r = await hostCall('files:create', { group: fileDialogGroup.id, rel: name });
+  if (!r.ok) { fail(r.error || 'The script could not be created.'); return; }
+  closeDialog($('#file-dialog'), 'created');
+  await refreshFiles();
+  openFolderFile(fileDialogGroup.id, { rel: name, name: name.split('/').pop() });
+});
+$('#explorer-search').addEventListener('input', renderExplorer);
+$('#explorer-search').addEventListener('keydown', e => { if (e.key === 'Escape' && e.target.value) { e.stopPropagation(); e.target.value = ''; renderExplorer(); } });
+$('#explorer-refresh').addEventListener('click', () => refreshFiles().then(() => toast('Files refreshed')));
+// Files added or changed in File Explorer show up when you come back to the editor.
+addEventListener('focus', () => { if (filesLoaded) refreshFiles(); });
+
+// ---- floating action bar: dragged by its grip, kept inside the code pane -------------------------
+function placeToolbar() {
+  const bar = $('#floating-toolbar'), pane = bar.parentElement;
+  if (!toolbarPos) { bar.style.left = bar.style.top = ''; bar.style.right = ''; return; }
+  const left = Math.max(0, Math.min(toolbarPos.left, pane.clientWidth - bar.offsetWidth));
+  const top = Math.max(0, Math.min(toolbarPos.top, pane.clientHeight - bar.offsetHeight));
+  bar.style.right = 'auto'; bar.style.left = left + 'px'; bar.style.top = top + 'px';
+}
+$('#toolbar-handle').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const bar = $('#floating-toolbar'), pane = bar.parentElement;
+  const start = bar.getBoundingClientRect(), paneRect = pane.getBoundingClientRect();
+  const dx = e.clientX - start.left, dy = e.clientY - start.top;
+  bar.classList.add('dragging');
+  $('#toolbar-handle').setPointerCapture(e.pointerId);
+  const move = m => {
+    toolbarPos = { left: m.clientX - paneRect.left - dx, top: m.clientY - paneRect.top - dy };
+    placeToolbar();
+  };
+  const up = () => {
+    bar.classList.remove('dragging');
+    $('#toolbar-handle').removeEventListener('pointermove', move);
+    $('#toolbar-handle').removeEventListener('pointerup', up);
+    persist();
+  };
+  $('#toolbar-handle').addEventListener('pointermove', move);
+  $('#toolbar-handle').addEventListener('pointerup', up);
+});
+// Double-click the grip to put the bar back in its corner.
+$('#toolbar-handle').addEventListener('dblclick', () => { toolbarPos = null; placeToolbar(); persist(); });
+
+// ---- clients -----------------------------------------------------------------------------------
+// One entry per running Roblox client, pushed by the editor host. A client is "attached" only while
+// its injected script is alive in the game it is in now, not merely while a backend process runs.
+let clients = [], selectedPid = 0, execTarget = 'selected';
+try { execTarget = localStorage.getItem('natware.execTarget') === 'all' ? 'all' : 'selected'; } catch (e) {}
+const primaryClient = () => clients.find(c => c.pid === selectedPid) || null;
+function clientState(c) {
+  if (c.attached) return ['Attached', 'ok'];
+  if (c.launching) return ['Starting…', 'warn'];
+  if (c.error) return [c.error, 'error'];
+  if (!c.up) return ['Not attached', ''];
+  if (!c.inGame) return ['On the home screen', 'warn'];
+  if (c.injectFailed) return ['Could not attach. Press Attach to retry', 'error'];
+  return ['Waiting for the game', 'warn'];
+}
+function renderClients() {
+  const list = $('#client-list');
+  $('#clients-empty').hidden = clients.length > 0;
+  $$('#page-clients .segmented button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.target === execTarget)));
+  const rows = clients.map(c => {
+    const row = document.createElement('div');
+    row.className = 'client-row'; row.setAttribute('role', 'listitem'); row.dataset.pid = c.pid;
+    const avatar = document.createElement('div'); avatar.className = 'client-avatar';
+    avatar.textContent = (c.name || '?').slice(0, 1).toUpperCase();
+    if (c.avatar) {
+      const img = new Image(); img.alt = ''; img.referrerPolicy = 'no-referrer';
+      img.onload = () => img.classList.add('loaded'); img.src = c.avatar; avatar.append(img);
+    }
+    const who = document.createElement('div'); who.className = 'client-who';
+    const name = document.createElement('div'); name.className = 'client-name';
+    name.textContent = c.display || c.name || 'Roblox client';
+    if (c.name && c.display && c.display !== c.name) { const h = document.createElement('span'); h.className = 'handle'; h.textContent = '@' + c.name; name.append(h); }
+    const meta = document.createElement('div'); meta.className = 'client-meta';
+    meta.textContent = 'PID ' + c.pid + (c.up ? ' · port ' + c.port : '') + (c.placeId ? ' · place ' + c.placeId : '') + (c.userId ? ' · user ' + c.userId : '');
+    who.append(name, meta);
+    const [text, state] = clientState(c);
+    const st = document.createElement('div'); st.className = 'client-state'; st.dataset.state = state; st.textContent = text; st.title = text;
+    const actions = document.createElement('div'); actions.className = 'client-actions';
+    const pick = document.createElement('button'); pick.className = 'button small' + (c.pid === selectedPid ? ' selected' : '');
+    pick.textContent = c.pid === selectedPid ? 'Selected' : 'Select'; pick.disabled = c.pid === selectedPid;
+    pick.addEventListener('click', () => clientCall('clients:select', c.pid));
+    actions.append(pick);
+    if (!c.attached) {
+      const attach = document.createElement('button'); attach.className = 'button small';
+      attach.textContent = c.launching ? 'Attaching…' : 'Attach'; attach.disabled = !!c.launching || attachingPids.has(c.pid);
+      attach.addEventListener('click', async () => {
+        attachingPids.add(c.pid); renderClients();
+        const r = await hostCall('clients:attach', { pid: c.pid }, 70000);
+        attachingPids.delete(c.pid);
+        if (r.ok) toast('Attached ' + (c.name || 'client ' + c.pid), 'info');
+        else { toast('Attach failed (' + (r.error || 'unknown') + ')', 'info'); log('Attach failed for pid ' + c.pid + ': ' + (r.error || 'unknown'), 'error', 'clients.attach_failed'); }
+        renderClients();
+      });
+      actions.append(attach);
+    } else if (c.up) {
+      const detach = document.createElement('button'); detach.className = 'button small quiet'; detach.title = 'Stop this client\'s backend';
+      detach.textContent = 'Detach';
+      detach.addEventListener('click', async () => { const r = await clientCall('clients:detach', c.pid); if (!r.ok) toast(r.error || 'Detach failed', 'info'); });
+      actions.append(detach);
+    }
+    row.append(avatar, who, st, actions);
+    return row;
+  });
+  // rebuild only when something visible changed, so a poll never steals a click mid-press
+  const sig = JSON.stringify([clients, selectedPid, execTarget, [...attachingPids]]);
+  if (list.dataset.sig !== sig) { list.dataset.sig = sig; list.replaceChildren(...rows); }
+}
+const attachingPids = new Set();
+async function clientCall(type, pid) {
+  const r = await hostCall(type, { pid }, 8000);
+  sendNexec({ type: 'nexec:status' }, true);
+  return r;
+}
+function setClients(m) {
+  clients = Array.isArray(m.clients) ? m.clients : [];
+  selectedPid = typeof m.selected === 'number' ? m.selected : 0;
+  renderClients();
+  renderConnection();
+}
+$$('#page-clients .segmented button').forEach(b => b.addEventListener('click', () => {
+  execTarget = b.dataset.target;
+  try { localStorage.setItem('natware.execTarget', execTarget); } catch (e) {}
+  renderClients();
+}));
+$('#clients-refresh').addEventListener('click', () => sendNexec({ type: 'nexec:status' }, true));
+
 // ---- toolbar -----------------------------------------------------------------------------------
 const nexecHost = window.chrome && window.chrome.webview;
 let nexecConnected = null;
@@ -487,22 +788,25 @@ const pendingOf = kind => [...pendingRequests.values()].find(r => r.kind === kin
 function renderConnection() {
   const attaching = pendingOf('attach'), executing = pendingOf('execute');
   const b = $('#attach'), execute = $('#execute'), status = $('#connection-status');
-  b.querySelector('span').textContent = attaching ? 'Attaching…' : nexecConnected ? 'Attached' : 'Attach';
   b.disabled = !nexecHost || !!attaching;
-  b.title = nexecConnected ? 'Backend connected' : 'Connect to Roblox';
+  b.title = attaching ? 'Attaching…' : nexecConnected ? 'Attached' : 'Attach to Roblox';
+  b.setAttribute('aria-label', b.title);
+  b.setAttribute('aria-busy', String(!!attaching));
+  b.classList.toggle('on', !!nexecConnected);
   execute.disabled = !!executing;
-  execute.querySelector('span').textContent = executing ? 'Waiting…' : 'Execute';
+  execute.title = executing ? 'Waiting for the backend…' : 'Execute (send this tab to the backend)';
   execute.setAttribute('aria-busy', String(!!executing));
   status.dataset.state = !nexecHost || !hostResponsive || nexecConnected === false ? 'error' : nexecConnected ? 'ok' : 'unknown';
   status.textContent = !nexecHost ? 'Editor host unavailable'
     : !hostResponsive ? 'Waiting for editor host…'
     : attaching ? 'Attaching…'
-    : nexecConnected ? 'Attached'
+    : nexecConnected ? 'Attached' + (primaryClient() && primaryClient().name ? ' · ' + primaryClient().name : '')
     : 'Not attached';
   $('#open-log-folder').disabled = !nexecHost;
 }
 function setNexec(connected) {
-  if (connected !== nexecConnected)
+  // "Attach broken" only when an attachment was there and went away, not for the first check.
+  if (connected !== nexecConnected && (connected || nexecConnected === true))
     log(connected ? 'Attached' : 'Attach broken', connected ? 'info' : 'warning', 'connection.pipe', { pipeAvailable: connected });
   nexecConnected = connected;
   hostResponsive = true;
@@ -520,8 +824,35 @@ function sendNexec(message, silent = false) {
     return false;
   }
 }
+// One request to the editor host that isn't an attach or execute ("files:*"): the reply of the same
+// type and requestId resolves it. Without the host it resolves at once with ok: false.
+const hostCalls = new Map();
+function hostCall(type, payload = {}, timeoutMs = 8000) {
+  return new Promise(resolve => {
+    if (!nexecHost) { resolve({ ok: false, error: 'Open the editor from natware to use your script folders' }); return; }
+    const requestId = crypto.randomUUID();
+    const timer = setTimeout(() => { hostCalls.delete(requestId); resolve({ ok: false, error: 'The editor host did not answer' }); }, timeoutMs);
+    hostCalls.set(requestId, { resolve, timer });
+    if (!sendNexec({ ...payload, type, requestId }, true)) { clearTimeout(timer); hostCalls.delete(requestId); resolve({ ok: false, error: 'Editor host unavailable' }); }
+  });
+}
+
+// The autoexec folder's scripts, one after another, after an attach went through.
+async function runAutoexec() {
+  if (!prefs.autoexec) return;
+  const r = await hostCall('files:autoexec');
+  const scripts = r.ok && Array.isArray(r.scripts) ? r.scripts : [];
+  if (!scripts.length) return;
+  log(`Running ${scripts.length} autoexec script${scripts.length === 1 ? '' : 's'}`, 'info', 'autoexec.start', { count: scripts.length });
+  for (const s of scripts) {
+    for (let i = 0; i < 300 && pendingOf('execute'); i++) await new Promise(done => setTimeout(done, 50));
+    const id = beginRequest('execute', { source: s.source, name: 'autoexec/' + s.name });
+    for (let i = 0; i < 400 && id && pendingRequests.has(id); i++) await new Promise(done => setTimeout(done, 50));
+  }
+}
+
 function beginRequest(kind, payload = {}, timeoutMs = 15000) {
-  if (pendingOf(kind)) { toast('A ' + kind + ' request is already pending', 'info'); return; }
+  if (pendingOf(kind)) { toast('A ' + kind + ' request is already pending', 'info'); return null; }
   const requestId = crypto.randomUUID();
   const request = { requestId, kind, started: performance.now(), timer: 0 };
   pendingRequests.set(requestId, request);
@@ -538,6 +869,7 @@ function beginRequest(kind, payload = {}, timeoutMs = 15000) {
     toast('Editor host unavailable', 'info');
   } else diagnostics.record('info', 'request.sent', 'Editor request sent', { requestId, kind, bytes: typeof payload.source === 'string' ? new TextEncoder().encode(payload.source).length : 0 });
   renderConnection();
+  return pendingRequests.has(requestId) ? requestId : null;
 }
 function finishRequest(message, kind) {
   const request = typeof message.requestId === 'string' ? pendingRequests.get(message.requestId) : null;
@@ -554,6 +886,12 @@ if (nexecHost) {
   nexecHost.addEventListener('message', e => {
     const m = e.data;
     if (!m || typeof m !== 'object') return;
+    if (m.type === 'clients') { setClients(m); return; }
+    if (typeof m.type === 'string' && (m.type.startsWith('files:') || m.type.startsWith('clients:'))) {
+      const call = hostCalls.get(m.requestId);
+      if (call) { clearTimeout(call.timer); hostCalls.delete(m.requestId); call.resolve(m); }
+      return;
+    }
     if (m.type === 'editor:ready') {
       window.natwareBuild = m.build;
       hostResponsive = true;
@@ -573,6 +911,7 @@ if (nexecHost) {
         setNexec(true);
         log('Attached', 'info', 'connection.result', { requestId: m.requestId });
         toast('Attached', 'info');
+        runAutoexec();
       } else {
         log('Attach broken: ' + (m.error || 'unknown'), 'error', 'connection.failed', { requestId: m.requestId });
         toast('Attach broken (' + (m.error || 'unknown') + ')', 'info');
@@ -580,7 +919,7 @@ if (nexecHost) {
     } else if (m.type === 'nexec:executed') {
       if (!finishRequest(m, 'execute')) return;
       if (m.ok === true) {
-        toast('Executed', 'info');
+        toast(m.count > 1 ? 'Executed on ' + m.count + ' clients' : 'Executed', 'info');
         log('Script sent' + (m.name ? ' (' + m.name + ')' : ''), 'info', 'execute.sent', { requestId: m.requestId });
       } else {
         toast(m.error || 'Execute failed', 'info');
@@ -614,11 +953,12 @@ $('#execute').addEventListener('click', () => {
   const source = ed ? ed.getValue() : t.source;
   if (!source.trim()) { toast('This tab is empty', 'info'); return; }
   if (new TextEncoder().encode(source).length > 2 * 1024 * 1024) { toast('Script exceeds the 2 MB request limit', 'info'); return; }
-  if (!nexecHost || !hostResponsive || !nexecConnected) {
+  const anyAttached = execTarget === 'all' ? clients.some(c => c.attached) : nexecConnected;
+  if (!nexecHost || !hostResponsive || !anyAttached) {
     log('Not attached', 'error', 'execute.unavailable');
     toast('Not attached', 'info'); return;
   }
-  beginRequest('execute', { source, name: t.name });
+  beginRequest('execute', { source, name: t.name, target: execTarget === 'all' ? 'all' : selectedPid || 'selected' });
 });
 $('#attach').addEventListener('click', () => {
   beginRequest('attach', {}, 45000);
@@ -682,6 +1022,13 @@ $('#file-input').addEventListener('change', async e => {
 });
 async function saveFile() {
   const t = active(), name = /\.(lua|luau|txt)$/i.test(t.name) ? t.name : t.name + '.lua';
+  // A tab opened from the Explorer saves back to its file.
+  if (t.file) {
+    const r = await hostCall('files:write', { group: t.file.group, rel: t.file.rel, source: ed ? ed.getValue() : t.source });
+    if (r.ok) { log('Saved ' + t.file.group + '/' + t.file.rel, 'success', 'file.saved', { group: t.file.group }); toast('Saved ' + t.name); refreshFiles(); }
+    else { log('File save failed: ' + (r.error || 'unknown'), 'error', 'file.save_failed', { group: t.file.group }); toast(r.error || 'The file was not saved', 'info'); }
+    return;
+  }
   if (window.showSaveFilePicker) {
     try {
       const handle = await showSaveFilePicker({ suggestedName: name, types: [{ description: 'Lua script', accept: { 'text/plain': ['.lua', '.luau', '.txt'] } }] });
@@ -1310,13 +1657,14 @@ combo($('#font-size'), {
   onChange: v => { prefs.fontSize = v; applyPreferences(); },
 });
 function readPreferences() {
-  prefs = { ...prefs, wordWrap: $('#word-wrap').checked, minimap: $('#minimap').checked, smooth: $('#smooth-motion').checked };
+  prefs = { ...prefs, wordWrap: $('#word-wrap').checked, minimap: $('#minimap').checked, smooth: $('#smooth-motion').checked, autoexec: $('#run-autoexec').checked };
   applyPreferences();
 }
 $('#word-wrap').checked = !!prefs.wordWrap;
 $('#minimap').checked = !!prefs.minimap;
 $('#smooth-motion').checked = !!prefs.smooth;
-['word-wrap', 'minimap', 'smooth-motion'].forEach(id => $('#' + id).addEventListener('change', readPreferences));
+$('#run-autoexec').checked = !!prefs.autoexec;
+['word-wrap', 'minimap', 'smooth-motion', 'run-autoexec'].forEach(id => $('#' + id).addEventListener('change', readPreferences));
 $('#open-preferences').addEventListener('click', () => openDialog($('#settings-dialog')));
 
 // ---- window: no native title bar, so the page carries minimize and close -------------------------
@@ -1344,7 +1692,7 @@ addEventListener('keydown', e => {
   if (!$('#filter-panel').hidden) { setFilterPanel(false); $('#filter-toggle').focus(); }
   else if ($('#script-drawer').classList.contains('open')) closeDrawer();
 });
-addEventListener('resize', () => { moveNavIndicator(); moveTabIndicator(true); });
+addEventListener('resize', () => { moveNavIndicator(); moveTabIndicator(true); placeToolbar(); });
 
 // ---- start ------------------------------------------------------------------------------------------
 Glass.scan();
@@ -1355,6 +1703,8 @@ renderCounts();
 document.body.dataset.hub = hubView;
 logViews.forEach(renderLogView);
 showPage('editor');
-document.fonts?.ready.then(() => { moveNavIndicator(); moveTabIndicator(true); });
+placeToolbar();
+refreshFiles();
+document.fonts?.ready.then(() => { moveNavIndicator(); moveTabIndicator(true); placeToolbar(); });
 if (storageLoadError) log('Stored workspace could not be loaded; check diagnostics and the recovery copy', 'warning', 'storage.load_failed', { error: storageLoadError });
 log('Workspace ready.', 'info', 'workspace.ready', { tabs: tabs.length, savedScripts: custom.length, hostPresent: !!nexecHost });

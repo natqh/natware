@@ -89,18 +89,23 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="..\natware\src\features\editor\editor_window.cpp" />
     <ClCompile Include="..\natware\src\features\editor\nexec_bridge.cpp" />
+    <ClCompile Include="..\natware\src\features\editor\client_manager.cpp" />
     <ClCompile Include="..\natware\src\features\editor\nexec_loader.cpp" />
     <ClCompile Include="..\natware\src\features\editor\offset_dumper.cpp" />
+    <ClCompile Include="..\natware\src\features\editor\editor_files.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="version.h" />
     <ClInclude Include="..\natware\src\features\editor\editor_window.h" />
     <ClInclude Include="..\natware\src\features\editor\editor_diagnostics.h" />
     <ClInclude Include="..\natware\src\features\editor\nexec_bridge.h" />
+    <ClInclude Include="..\natware\src\features\editor\client_manager.h" />
     <ClInclude Include="..\natware\src\features\editor\nexec_loader.h" />
     <ClInclude Include="..\natware\src\features\editor\offset_dumper.h" />
     <ClInclude Include="..\natware\src\features\editor\shared_offsets.h" />
     <ClInclude Include="..\natware\src\features\editor\shellcode.h" />
+    <ClInclude Include="..\natware\src\features\editor\editor_files.h" />
+    <ClInclude Include="..\natware\src\paths.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="editor.rc" />

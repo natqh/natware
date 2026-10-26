@@ -4,6 +4,7 @@
 //
 //   editor.exe [--auto-attach]   --auto-attach: attach to Roblox 3 s after the window is up
 #include "version.h"
+#include "../natware/src/paths.h"
 #include "../natware/src/features/editor/editor_window.h"
 #include "../natware/src/features/editor/editor_diagnostics.h"
 #include "../natware/src/features/editor/nexec_loader.h"
@@ -23,6 +24,25 @@ static void safe_inject_thread()
     std::string error;
     nexec_loader::inject(error);
     s_inject_done.store(true);
+}
+
+// The "n" (icon resource 1, ..\natware\src\natware.ico) on the editor window, for the taskbar and
+// Alt+Tab. The window is this thread's, so it's found without touching editor_window.cpp.
+static void set_window_icon()
+{
+    EnumThreadWindows(GetCurrentThreadId(), [](HWND hwnd, LPARAM) -> BOOL
+    {
+        wchar_t cls[64]{};
+        GetClassNameW(hwnd, cls, 64);
+        if (lstrcmpW(cls, L"natware_editor_wnd") != 0)
+            return TRUE;
+        const HINSTANCE instance = GetModuleHandleW(nullptr);
+        if (const HANDLE big = LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), 0))
+            SendMessageW(hwnd, WM_SETICON, ICON_BIG, reinterpret_cast<LPARAM>(big));
+        if (const HANDLE little = LoadImageW(instance, MAKEINTRESOURCEW(1), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), 0))
+            SendMessageW(hwnd, WM_SETICON, ICON_SMALL, reinterpret_cast<LPARAM>(little));
+        return FALSE;
+    }, 0);
 }
 
 // %TEMP%\natware_main_dbg.log: what --auto-attach saw.
@@ -45,19 +65,9 @@ static void debug_log(const char* mode, const char* format, ...)
 
 int main()
 {
-    // Shells and shortcuts can start us with an unrelated working directory; data\webview and
-    // nexec.exe are found beside the exe.
-    wchar_t executable_path[32768]{};
-    const DWORD executable_length = GetModuleFileNameW(nullptr, executable_path, 32768);
-    if (executable_length > 0 && executable_length < 32768)
-    {
-        wchar_t* separator = wcsrchr(executable_path, L'\\');
-        if (separator)
-        {
-            *separator = L'\0';
-            SetCurrentDirectoryW(executable_path);
-        }
-    }
+    // The editor runs from the natware folder (NATWARE_ROOT when natware started it): data\webview,
+    // workspace\ and autoexec\ are there; nexec.exe sits beside this exe in bin\.
+    SetCurrentDirectoryW(natware_paths::root().c_str());
 
     // A windowed app has no console; route stray log lines to NUL so printf stays safe.
     FILE* fp = nullptr;
@@ -70,6 +80,7 @@ int main()
 
     const bool created = natware_editor::create();
     if (created) {
+        set_window_icon();
         const char* cmdline = GetCommandLineA();
         const bool auto_attach = strstr(cmdline, "--auto-attach") != nullptr;
         ULONGLONG auto_attach_at = auto_attach ? (GetTickCount64() + 3000) : 0;
@@ -79,11 +90,11 @@ int main()
             natware_editor::pump();
             if (auto_attach_at && GetTickCount64() >= auto_attach_at) {
                 auto_attach_at = 0;
-                bool bridge = nexec_bridge::available();
-                bool already = s_inject_started.load();
-                debug_log("a", "auto_attach fired: bridge=%d already=%d\n", bridge ? 1 : 0, already ? 1 : 0);
-                if (!bridge && !s_inject_started.exchange(true))
-                    std::thread(safe_inject_thread).detach();
+                bool already = s_inject_started.exchange(true);
+                debug_log("a", "auto_attach fired: already=%d\n", already ? 1 : 0);
+                // attaches the selected (else first) Roblox client unless it already is
+                if (!already)
+                    natware_editor::trigger_attach();
             }
             Sleep(16);
         }

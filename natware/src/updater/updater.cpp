@@ -1,6 +1,7 @@
 #include "updater.h"
 
 #include <version.h>
+#include <paths.h>
 #include <features/config/config.h>
 #include <settings.h>
 #include <json/json.hpp>
@@ -93,12 +94,6 @@ namespace
 		return path;
 	}
 
-	// The folder natware.exe is in, with the trailing backslash.
-	std::wstring app_dir()
-	{
-		const std::wstring exe = exe_path();
-		return exe.substr(0, exe.find_last_of(L'\\') + 1);
-	}
 
 	// "C:\...\editor.exe" -> "C:\...\editor.old.exe"
 	std::wstring old_path(const std::wstring& exe)
@@ -357,7 +352,7 @@ namespace
 	// ---- data\versions.json: what's installed -------------------------------------------------
 	// { "natware": { "version": "1.0.2", "sha256": "..." }, "editor": {...}, "nexec": {...} }
 
-	std::wstring manifest_path() { return app_dir() + L"data\\versions.json"; }
+	std::wstring manifest_path() { return natware_paths::data() + L"versions.json"; }
 
 	nlohmann::json read_manifest()
 	{
@@ -377,7 +372,6 @@ namespace
 	// Written beside and moved over, so a crash never leaves half a file.
 	void write_manifest(const nlohmann::json& j)
 	{
-		CreateDirectoryW((app_dir() + L"data").c_str(), nullptr);
 		const std::wstring target = manifest_path(), temp = target + L".tmp";
 		HANDLE file = CreateFileW(temp.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 		if (file == INVALID_HANDLE_VALUE)
@@ -410,7 +404,8 @@ namespace
 	{
 		if (!g_comps.empty())
 			return;
-		const std::wstring dir = app_dir();
+		// natware.exe stays where you put it; the editor and nexec live in the natware folder's bin\.
+		const std::wstring dir = natware_paths::bin();
 		for (const spec_t& s : kSpecs)
 		{
 			comp_t c;

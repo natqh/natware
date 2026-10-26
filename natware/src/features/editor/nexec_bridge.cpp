@@ -7,33 +7,17 @@
 
 #include "nexec_bridge.h"
 #include "editor_diagnostics.h"
+#include "../../../ext/json/json.hpp"
 #include <cstring>
 #include <string>
-#include <vector>
-#include <mutex>
 
 namespace nexec_bridge {
 
 static constexpr const char* kHost = "127.0.0.1";
-static constexpr u_short kPort = 6969;
 
-static std::mutex s_pid_mutex;
-static unsigned long s_roblox_pid = 0;
-
-void set_pid(unsigned long pid)
+static bool socket_ready()
 {
-    std::lock_guard<std::mutex> lock(s_pid_mutex);
-    s_roblox_pid = pid;
-}
-
-static unsigned long get_pid()
-{
-    std::lock_guard<std::mutex> lock(s_pid_mutex);
-    return s_roblox_pid;
-}
-
-static bool socket_ready(bool& wsa_up)
-{
+    static bool wsa_up = false;
     if (!wsa_up)
     {
         WSADATA wsa{};
@@ -44,10 +28,9 @@ static bool socket_ready(bool& wsa_up)
     return true;
 }
 
-static SOCKET connect_bounded(int timeout_ms, std::string& error)
+static SOCKET connect_bounded(unsigned short port, int timeout_ms, int receive_ms, std::string& error)
 {
-    static bool wsa_up = false;
-    if (!socket_ready(wsa_up))
+    if (!socket_ready())
     {
         error = "Winsock failed to start";
         return INVALID_SOCKET;
@@ -65,7 +48,7 @@ static SOCKET connect_bounded(int timeout_ms, std::string& error)
 
     sockaddr_in address{};
     address.sin_family = AF_INET;
-    address.sin_port = htons(kPort);
+    address.sin_port = htons(port);
     if (InetPtonA(AF_INET, kHost, &address.sin_addr) != 1)
     {
         closesocket(sock);
@@ -86,8 +69,7 @@ static SOCKET connect_bounded(int timeout_ms, std::string& error)
         FD_ZERO(&writable);
         FD_SET(sock, &writable);
         timeval wait{ timeout_ms / 1000, (timeout_ms % 1000) * 1000 };
-        const int selected = select(0, nullptr, &writable, nullptr, &wait);
-        if (selected <= 0)
+        if (select(0, nullptr, &writable, nullptr, &wait) <= 0)
         {
             closesocket(sock);
             return INVALID_SOCKET;
@@ -104,21 +86,10 @@ static SOCKET connect_bounded(int timeout_ms, std::string& error)
 
     u_long blocking = 0;
     ioctlsocket(sock, FIONBIO, &blocking);
-    const int receive_timeout_ms = 5000;
-    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&receive_timeout_ms), sizeof(receive_timeout_ms));
+    setsockopt(sock, SOL_SOCKET, SO_RCVTIMEO, reinterpret_cast<const char*>(&receive_ms), sizeof(receive_ms));
     const int send_timeout_ms = 10000;
     setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, reinterpret_cast<const char*>(&send_timeout_ms), sizeof(send_timeout_ms));
     return sock;
-}
-
-bool available()
-{
-    std::string ignored;
-    const SOCKET probe = connect_bounded(300, ignored);
-    if (probe == INVALID_SOCKET)
-        return false;
-    closesocket(probe);
-    return true;
 }
 
 static bool send_all(SOCKET sock, const char* data, size_t len)
@@ -134,84 +105,138 @@ static bool send_all(SOCKET sock, const char* data, size_t len)
     return true;
 }
 
-static std::string recv_response(SOCKET sock)
+// One request, one response (the backend closes the connection). false: nothing answered.
+static bool http(unsigned short port, const char* method, const std::string& path, const std::string& body,
+                 int connect_ms, int receive_ms, int& code, std::string& response_body, std::string& error)
 {
-    std::string buf;
-    char tmp[4096];
-    for (;;)
-    {
-        int n = recv(sock, tmp, sizeof(tmp), 0);
-        if (n <= 0)
-            break;
-        buf.append(tmp, static_cast<size_t>(n));
-        if (buf.find("\r\n\r\n") != std::string::npos)
-            break;
-    }
-    return buf;
-}
+    code = 0;
+    response_body.clear();
 
-bool execute(const std::string& source, std::string& error, const char* /*pipe_name*/)
-{
-    error.clear();
-    if (source.empty() || source.size() > 2 * 1024 * 1024) {
-        error = source.empty() ? "This tab is empty" : "Script exceeds the 2 MB request limit";
-        return false;
-    }
-
-    const unsigned long pid = get_pid();
-    if (pid == 0) {
-        error = "Not attached — click Attach first";
-        return false;
-    }
-
-    std::string connect_error;
-    const SOCKET sock = connect_bounded(1500, connect_error);
+    const SOCKET sock = connect_bounded(port, connect_ms, receive_ms, error);
     if (sock == INVALID_SOCKET)
-    {
-        editor_diagnostics::write("error", "http.connect_failed", {});
-        error = connect_error.empty() ? "Backend is unavailable" : connect_error;
         return false;
-    }
 
-    const std::string path = "/execute?pid=" + std::to_string(pid);
     const std::string header =
-        "POST " + path + " HTTP/1.1\r\n"
-        "Host: 127.0.0.1:6969\r\n"
+        std::string(method) + " " + path + " HTTP/1.1\r\n"
+        "Host: 127.0.0.1:" + std::to_string(port) + "\r\n"
         "Content-Type: text/plain\r\n"
-        "Content-Length: " + std::to_string(source.size()) + "\r\n"
+        "Content-Length: " + std::to_string(body.size()) + "\r\n"
         "Connection: close\r\n"
         "\r\n";
 
-    editor_diagnostics::write("info", "http.sending", {{"bytes", source.size()}});
-
-    if (!send_all(sock, header.c_str(), header.size()) ||
-        !send_all(sock, source.c_str(), source.size()))
+    if (!send_all(sock, header.c_str(), header.size()) || !send_all(sock, body.c_str(), body.size()))
     {
         closesocket(sock);
         error = "Backend dropped the connection while sending";
-        editor_diagnostics::write("error", "http.send_failed", {});
         return false;
     }
 
-    const std::string response = recv_response(sock);
+    std::string raw;
+    char tmp[4096];
+    for (;;)
+    {
+        const int n = recv(sock, tmp, sizeof(tmp), 0);
+        if (n <= 0)
+            break;
+        raw.append(tmp, static_cast<size_t>(n));
+    }
     closesocket(sock);
 
-    if (response.find("200") != std::string::npos)
+    if (raw.size() < 12 || raw.compare(0, 5, "HTTP/") != 0)
     {
-        editor_diagnostics::write("info", "http.sent", {{"bytes", source.size()}});
+        error = "No response from backend";
+        return false;
+    }
+    code = std::atoi(raw.c_str() + 9);
+    const auto split = raw.find("\r\n\r\n");
+    if (split != std::string::npos)
+        response_body = raw.substr(split + 4);
+    return true;
+}
+
+bool status(unsigned short port, Status& out, int timeout_ms)
+{
+    out = Status{};
+    out.port = port;
+
+    int code = 0;
+    std::string body, error;
+    if (!http(port, "GET", "/status", "", timeout_ms, 1500, code, body, error) || code != 200)
+        return false;
+
+    const nlohmann::json json = nlohmann::json::parse(body, nullptr, false);
+    if (!json.is_object())
+        return false;
+
+    const auto text = [&](const char* key) -> std::string {
+        const auto it = json.find(key);
+        return it != json.end() && it->is_string() ? it->get<std::string>() : std::string();
+    };
+    const auto flag = [&](const char* key) {
+        const auto it = json.find(key);
+        return it != json.end() && it->is_boolean() && it->get<bool>();
+    };
+    const auto number = [&](const char* key) -> unsigned long {
+        const auto it = json.find(key);
+        return it != json.end() && it->is_number_unsigned() ? it->get<unsigned long>() : 0;
+    };
+
+    out.up = true;
+    out.attached = flag("attached");
+    out.inGame = flag("inGame");
+    out.injectFailed = flag("injectFailed");
+    out.pid = number("pid");
+    out.backendPid = number("backendPid");
+    out.name = text("name");
+    out.userId = text("userId");
+    out.display = text("display");
+    out.avatar = text("avatar");
+    out.placeId = text("placeId");
+    out.jobId = text("jobId");
+    return true;
+}
+
+bool reinject(unsigned short port, unsigned long pid)
+{
+    int code = 0;
+    std::string body, error;
+    return http(port, "POST", "/reinject?pid=" + std::to_string(pid), "", 1500, 3000, code, body, error) && code == 200;
+}
+
+bool execute(unsigned short port, unsigned long pid, const std::string& source, std::string& error)
+{
+    error.clear();
+    if (source.empty() || source.size() > 2 * 1024 * 1024)
+    {
+        error = source.empty() ? "This tab is empty" : "Script exceeds the 2 MB request limit";
+        return false;
+    }
+    if (pid == 0)
+    {
+        error = "Not attached";
+        return false;
+    }
+
+    editor_diagnostics::write("info", "http.sending", {{"bytes", source.size()}, {"port", port}});
+
+    int code = 0;
+    std::string body;
+    if (!http(port, "POST", "/execute?pid=" + std::to_string(pid), source, 1500, 5000, code, body, error))
+    {
+        editor_diagnostics::write("error", "http.failed", {{"port", port}, {"error", error}});
+        if (error.empty())
+            error = "Backend is unavailable";
+        return false;
+    }
+
+    if (code == 200)
+    {
+        editor_diagnostics::write("info", "http.sent", {{"bytes", source.size()}, {"port", port}});
         return true;
     }
 
-    const auto body_pos = response.find("\r\n\r\n");
-    if (body_pos != std::string::npos)
-    {
-        std::string body = response.substr(body_pos + 4);
-        error = body.empty() ? "Backend rejected the request" : body;
-    }
-    else
-        error = "No response from backend";
-
-    editor_diagnostics::write("error", "http.rejected", {{"response", response.substr(0, 200)}});
+    error = body.empty() ? "Backend rejected the request" : body;
+    editor_diagnostics::write("error", "http.rejected", {{"port", port}, {"code", code}, {"response", body.substr(0, 200)}});
     return false;
 }
 
