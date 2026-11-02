@@ -194,12 +194,14 @@ static void mouse_aim(const math::vector2& target, const math::vector2& origin, 
 	// right away, so plain pixel moves (part of the way each tick) home in without overshooting.
 	static float rem_x = 0.0f, rem_y = 0.0f;
 	const float dx = target.x - origin.x, dy = target.y - origin.y;
-	if (dx * dx + dy * dy < 1.5f * 1.5f)
+	const float pixel_dist = std::sqrt(dx * dx + dy * dy);
+	if (pixel_dist < 1.5f)
 	{
 		rem_x = rem_y = 0.0f;
 		return;
 	}
-	float kx = 0.35f, ky = 0.35f;
+	const float proximity = std::clamp(pixel_dist / 40.0f, 0.15f, 1.0f);
+	float kx = 0.35f * proximity, ky = 0.35f * proximity;
 	if (settings::aimbot::smoothing)
 	{
 		kx = (std::min)(kx, std::clamp(1.0f / settings::aimbot::smoothingx, 0.01f, 1.0f) * 0.1f);

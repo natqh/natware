@@ -329,7 +329,8 @@ void pf_mouse::steer_to(const math::vector2& target, const math::vector2& origin
 
 	const float dx = target.x - origin.x;
 	const float dy = target.y - origin.y;
-	if (dx * dx + dy * dy < 1.5f * 1.5f)
+	const float pixel_dist = std::sqrt(dx * dx + dy * dy);
+	if (pixel_dist < 1.5f)
 	{
 		g_ctrl.rem[0] = g_ctrl.rem[1] = 0.0f;
 		return;   // on target
@@ -346,6 +347,9 @@ void pf_mouse::steer_to(const math::vector2& target, const math::vector2& origin
 		step[0] = (std::min)(step[0], 1.0f - std::pow(1.0f - tx, since * 60.0f));   // per 60 Hz frame
 		step[1] = (std::min)(step[1], 1.0f - std::pow(1.0f - ty, since * 60.0f));
 	}
+	const float proximity = std::clamp(pixel_dist / 30.0f, 0.2f, 1.0f);
+	step[0] *= proximity;
+	step[1] *= proximity;
 	g_last_steer = now;
 
 	const float want[2] = { std::atan(dx / f), std::atan(dy / f) };

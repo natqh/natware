@@ -70,6 +70,16 @@ std::uint64_t memory_t::find_module_address(const std::string& module_name)
     return module_address;
 }
 
+void memory_t::detach()
+{
+    if (process_handle && process_handle != INVALID_HANDLE_VALUE)
+        CloseHandle(process_handle);
+    process_handle = nullptr;
+    process_id = 0;
+    base_address = 0;
+    module_size_ = 0;
+}
+
 bool memory_t::attach_to_process(const std::string& process_name)
 {
     std::uint32_t pID = find_process_id(process_name);
@@ -113,20 +123,14 @@ void memory_t::write_string(std::uint64_t address, const std::string& value)
 
     if (new_length >= 16)
     {
-        // New string needs heap allocation — only safe if current string also uses heap
         if (current_length < 16)
         {
-            // Current string is SSO (inline), no heap buffer exists.
-            // Cannot safely write a long string here without VirtualAllocEx.
-            // Skip this write to prevent crash.
             return;
         }
 
-        // Current string is on heap — reuse its buffer
         std::uint64_t heap_ptr = read<std::uint64_t>(address);
         if (heap_ptr == 0 || heap_ptr > 0x7FFFFFFFFFFF) return;
 
-        // Check capacity to avoid buffer overflow
         std::int32_t capacity = read<std::int32_t>(address + 0x18);
         if (new_length > capacity) return;
 
@@ -135,7 +139,6 @@ void memory_t::write_string(std::uint64_t address, const std::string& value)
     }
     else
     {
-        // New string fits in SSO buffer — write inline
         write<std::int32_t>(address + 0x10, new_length);
         write_buffer(address, value.c_str(), new_length);
     }

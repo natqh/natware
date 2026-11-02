@@ -12,6 +12,7 @@
 #include <version.h>
 #include <paths.h>
 #include <layout.h>
+#include <memory/driver_loader.h>
 // The "n" (icon resource 1, src\natware.ico) on a window, for the taskbar and Alt+Tab.
 static void set_window_icon(HWND hwnd)
 {
@@ -518,11 +519,52 @@ int main()
     }
     printf("Mode selected: %s\n", settings::app_mode == settings::MODE_EXECUTOR ? "Executor" : "External");
 
-    // The editor is its own program (editor.exe) and never attaches to the game itself.
+    // Intel driver loaded here so nexec can use \\.\Nal for kernel-level access
     if (settings::app_mode == settings::MODE_EXECUTOR) {
+        if (physmem::g_device == INVALID_HANDLE_VALUE)
+        {
+            std::wstring vuln = physmem::find_vuln_sys();
+            if (vuln.empty())
+            {
+                fail("Intel driver not found (should be embedded).");
+                ExitProcess(1);
+            }
+            std::string pm_err;
+            bool loaded = false;
+            std::thread loader([&] {
+                loaded = physmem::load(vuln, pm_err);
+                if (loaded && !physmem::self_test()) {
+                    pm_err = "kernel R/W self-test failed";
+                    physmem::unload();
+                    loaded = false;
+                }
+            });
+            while (!loaded && pm_err.empty())
+            {
+                if (!wait_frame("Loading driver"))
+                {
+                    loader.detach();
+                    quit_now();
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(15));
+            }
+            loader.join();
+            if (!loaded)
+            {
+                fail(("Intel driver failed: " + pm_err).c_str());
+                ExitProcess(1);
+            }
+            printf("Intel driver loaded, kernel R/W verified.\n");
+        }
+        else
+        {
+            printf("Intel driver already loaded.\n");
+        }
+
         if (run_editor() != 0)
             ExitProcess(1);
-        quit_now();   // a natware update chosen for "when I close" goes in now
+        physmem::unload();
+        quit_now();
     }
     // An update restarts natware straight back into the overlay.
     updater::set_restart(L"--external");
@@ -762,7 +804,7 @@ int main()
         if (settings::globals::quit_requested)
             quit_now();
 
-        // Check if Roblox is still running
+        // Check if Roblox is still running — if it closed, wait for it to come back
         if (std::chrono::steady_clock::now() - last_pid_check > std::chrono::milliseconds(500))
         {
             DWORD exit_code = 0;
@@ -770,7 +812,68 @@ int main()
             if (proc == nullptr || proc == INVALID_HANDLE_VALUE ||
                 (GetExitCodeProcess(proc, &exit_code) && exit_code != STILL_ACTIVE))
             {
-                quit_now();
+                printf("Roblox closed. Waiting for it to reopen...\n");
+                memory->detach();
+
+                game::datamodel = {};
+                game::visengine = {};
+                game::workspace = {};
+                game::players = {};
+                game::local_player = {};
+                game::local_character = {};
+                game::camera = 0;
+                game::roblox_window = nullptr;
+                game::window_offset_x = 0.0f;
+                game::window_offset_y = 0.0f;
+                game::is_phantom_forces = false;
+                game::is_murder_mystery_2 = false;
+                game::is_lumber_tycoon_2 = false;
+
+                {
+                    std::lock_guard<std::mutex> lock(cache::mtx);
+                    cache::cached_players.clear();
+                    cache::cached_local_player = {};
+                }
+
+                BINARY_NAME = nullptr;
+                while (true) {
+                    for (int i = 0; PROCESS_NAMES[i]; i++) {
+                        if (memory->find_process_id(PROCESS_NAMES[i])) {
+                            BINARY_NAME = PROCESS_NAMES[i];
+                            break;
+                        }
+                    }
+                    if (BINARY_NAME) break;
+                    wait_for("Waiting for Roblox to reopen", 500);
+                }
+                printf("Roblox found! (%s)\n", BINARY_NAME);
+
+                while (!memory->attach_to_process(BINARY_NAME))
+                    wait_for("Reconnecting to Roblox", 500);
+                printf("Re-attached to Roblox!\n");
+
+                while (!memory->find_module_address(BINARY_NAME))
+                    wait_for("Reconnecting to Roblox", 500);
+                printf("Module found!\n");
+
+                robloxVersion = OffsetLoader::GetRobloxVersionFromProcess(memory->get_process_handle(), memory->get_process_id());
+                fetchVersion = robloxVersion.empty() ? Offsets::ClientVersion : robloxVersion;
+                OffsetLoader::FetchOffsetsFromWeb(fetchVersion);
+                OffsetLoader::FetchFFlagsFromWeb(fetchVersion);
+
+                fake_datamodel = 0;
+                while (true) {
+                    fake_datamodel = memory->read<std::uint64_t>(memory->get_module_address() + Offsets::FakeDataModel::Pointer);
+                    if (fake_datamodel != 0) {
+                        game::datamodel = rbx::instance_t(memory->read<std::uint64_t>(fake_datamodel + Offsets::FakeDataModel::RealDataModel));
+                        if (game::datamodel.address != 0)
+                            break;
+                    }
+                    wait_for("Waiting for Roblox to load", 500);
+                }
+                game::visengine = {memory->read<std::uint64_t>(memory->get_module_address() + Offsets::VisualEngine::Pointer)};
+                game::players = game::datamodel.find_first_child_by_class("Players");
+                printf("Roblox re-initialized!\n");
             }
             last_pid_check = std::chrono::steady_clock::now();
         }

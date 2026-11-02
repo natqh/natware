@@ -436,11 +436,27 @@ bool aim_target::update(const math::matrix4& view, const math::vector2& dims, co
 
 	int current = -1;
 	std::vector<float> dist(candidates.size());
-	for (size_t i = 0; i < candidates.size(); ++i)
+	if (settings::aimbot::closest_player && has_local_root)
 	{
-		dist[i] = candidates[i].part.dist;
-		if (candidates[i].entity->instance.address == g.target)
-			current = static_cast<int>(i);
+		for (size_t i = 0; i < candidates.size(); ++i)
+		{
+			math::vector3 root{};
+			if (aim_guard::root_of(*candidates[i].entity, root))
+				dist[i] = (root - local_root).length();
+			else
+				dist[i] = candidates[i].part.dist;
+			if (candidates[i].entity->instance.address == g.target)
+				current = static_cast<int>(i);
+		}
+	}
+	else
+	{
+		for (size_t i = 0; i < candidates.size(); ++i)
+		{
+			dist[i] = candidates[i].part.dist;
+			if (candidates[i].entity->instance.address == g.target)
+				current = static_cast<int>(i);
+		}
 	}
 
 	// The target ducked out of view or behind a wall for a moment: wait for it rather than

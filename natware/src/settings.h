@@ -49,6 +49,7 @@ namespace settings
 		inline bool teamcheck{ false };
 		inline bool knock_check{ false };
 		inline bool sticky_aim{ false };
+		inline bool closest_player{ false };   // sort by world distance, not crosshair distance
 		inline bool wallcheck{ false };        // skip targets behind walls
 
 		inline bool health_check_enabled{ false };
@@ -281,6 +282,8 @@ namespace settings
 
 		inline bool tool{ false };
 		inline float tool_color[4]{ 1.f, 1.f, 1.f, 1.f };
+
+		inline bool team_name{ false };
 
 		inline int esp_font{ 0 };
 		inline bool local_player{ false };

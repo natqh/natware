@@ -31,6 +31,7 @@ namespace cache
 		std::unordered_map<std::string, rbx::part_t> parts;
 
 		std::uint64_t team{ 0 };
+		std::string team_name;
 		float team_color[3]{ 0.f, 0.f, 0.f };
 		bool has_team_color{ false };
 		float health{ 0.0f };

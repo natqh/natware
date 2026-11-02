@@ -216,6 +216,7 @@ namespace
         ui::BeginCard("General");
         ui::ToggleKey("Enabled", &ab::enabled, &ab::keybind, &ab::activation_mode);
         ui::Toggle("Sticky aim", &ab::sticky_aim);
+        ui::Toggle("Closest player", &ab::closest_player);
         ui::ToggleColor("Draw FOV", &ab::draw_fov, ab::fov_circle_colour, ab::fov_outline_colour);
         ui::Slider("FOV", &ab::fov, 0.0f, 1000.0f, "%.0f");
         // The choice is never changed for the user; Silent Aim simply runs as Camera outside PF.
@@ -874,6 +875,7 @@ namespace
             ui::Combo("Unit", &v::distance_measurement, { "Studs", "Meters" });
             ui::EndSub();
         }
+        ui::Toggle("Team name", &v::team_name);
         ui::ToggleColor("Tool", &v::tool, v::tool_color);
         ui::ToggleColor("Flags", &v::flags, v::flags_state_colour);
         if (v::esp_style == 1)

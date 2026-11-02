@@ -1312,6 +1312,21 @@ void esp::run()
 				}
 			}
 
+			bool team_name_rendered = false;
+			if (!is_local_player && settings::visuals::team_name && !entity.team_name.empty())
+			{
+				float tn_y = roundf(box_bottom) + 5.f;
+				if (armor_bar_rendered) tn_y = roundf(box_bottom) + 5.0f + 2.0f + 3.0f;
+				if (want_distance) tn_y += font_size + 2.f;
+				float tn_w = font->CalcTextSizeA(font_size, FLT_MAX, 0.f, entity.team_name.c_str()).x;
+				ImU32 tn_col = helper::color_with_opacity(
+					settings::visuals::distance_color[0], settings::visuals::distance_color[1],
+					settings::visuals::distance_color[2], settings::visuals::distance_color[3], opacity_multiplier);
+				helper::draw_text_outlined(draw, font, font_size,
+					ImVec2(box_center_x - tn_w * 0.5f, tn_y), tn_col, entity.team_name.c_str());
+				team_name_rendered = true;
+			}
+
 			bool want_tool = is_local_player ? settings::visuals::client_tool : settings::visuals::tool;
 			float tool_fade = is_local_player ? g_esp_fade_state.client_tool_opacity : g_esp_fade_state.tool_opacity;
 			if (want_tool)
@@ -1331,6 +1346,10 @@ void esp::run()
 					}
 
 					if (want_distance)
+					{
+						tool_y += font_size + 2.f;
+					}
+					if (team_name_rendered)
 					{
 						tool_y += font_size + 2.f;
 					}
@@ -1628,6 +1647,11 @@ void esp::run()
 					else
 						snprintf(info, sizeof(info), "%.0f studs", d);
 				}
+			}
+			if (!is_local_player && settings::visuals::team_name && !entity.team_name.empty())
+			{
+				const size_t n = std::strlen(info);
+				snprintf(info + n, sizeof(info) - n, "%s%s", n ? "  \xC2\xB7  " : "", entity.team_name.c_str());
 			}
 			if (tool_on)
 			{

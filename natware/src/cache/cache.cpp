@@ -206,6 +206,7 @@ void cache::run()
 							continue;
 
 						// Look up TeamColor from Players service by name
+						entity.team_name = team_folder.get_name();
 						auto tc_it = player_teamcolor_map.find(entity.name);
 						if (tc_it != player_teamcolor_map.end())
 						{
@@ -283,10 +284,12 @@ void cache::run()
 				entity.display_name = player.get_display_name();
 				entity.team = memory->read<std::uint64_t>(player.address + Offsets::Player::Team);
 
-				// Read team color from Team instance's BrickColor
+				// Read team name and color from Team instance
 				if (entity.team != 0 && entity.team != 0xFFFFFFFFFFFFFFFF)
 				{
 					try {
+						rbx::instance_t team_inst(entity.team);
+						entity.team_name = team_inst.get_name();
 						int brick_color_id = memory->read<int>(entity.team + Offsets::Team::BrickColor);
 						entity.has_team_color = brickcolor_to_rgb(brick_color_id, entity.team_color);
 					} catch (...) {}

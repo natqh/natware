@@ -36,6 +36,7 @@ public:
     std::uint64_t find_module_address(const std::string& module_name);
 
     bool attach_to_process(const std::string& process_name);
+    void detach();
 
     std::string read_string(std::uint64_t address);
     void write_string(std::uint64_t address, const std::string& value);
