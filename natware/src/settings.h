@@ -467,6 +467,7 @@ namespace settings
 		inline bool streamproof{ false };
 		inline bool vsync{ false };
 		inline bool performance_mode{ false };
+		inline bool stay_loaded{ true };
 	}
 
 	namespace lighting

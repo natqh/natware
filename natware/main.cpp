@@ -812,6 +812,11 @@ int main()
             if (proc == nullptr || proc == INVALID_HANDLE_VALUE ||
                 (GetExitCodeProcess(proc, &exit_code) && exit_code != STILL_ACTIVE))
             {
+                if (!settings::menu::stay_loaded)
+                {
+                    printf("Roblox closed. Unloading.\n");
+                    quit_now();
+                }
                 printf("Roblox closed. Waiting for it to reopen...\n");
                 memory->detach();
 

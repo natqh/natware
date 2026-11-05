@@ -70,6 +70,7 @@ namespace
 			B("menu.streamproof", settings::menu::streamproof),
 			B("menu.vsync", settings::menu::vsync),
 			B("menu.performance_mode", settings::menu::performance_mode),
+			B("menu.stay_loaded", settings::menu::stay_loaded),
 			B("menu.uncap_client_fps", settings::cilent::fpscaps::enabled),
 
 			// watermark

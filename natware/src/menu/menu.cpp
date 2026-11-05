@@ -1162,6 +1162,7 @@ namespace
         ui::Toggle("Hide from screen capture", &settings::menu::streamproof);
         ui::Toggle("V-Sync", &settings::menu::vsync);
         ui::Toggle("Performance mode", &settings::menu::performance_mode);
+        ui::Toggle("Stay loaded", &settings::menu::stay_loaded);
         ui::Toggle("Uncap client FPS", &settings::cilent::fpscaps::enabled);
         ui::Spacing(10.0f);
         if (ui::Button("Save diagnostics"))
