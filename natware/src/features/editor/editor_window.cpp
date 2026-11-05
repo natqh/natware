@@ -565,6 +565,7 @@ bool create()
         nullptr, nullptr, wc.hInstance, nullptr);
 
     if (!s_hwnd) { editor_diagnostics::write("error", "window.create_failed", {{"win32", GetLastError()}}); return false; }
+    SetWindowDisplayAffinity(s_hwnd, WDA_EXCLUDEFROMCAPTURE);   // the editor stays out of screen captures too
     const BOOL dark_caption = TRUE;
     DwmSetWindowAttribute(s_hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &dark_caption, sizeof(dark_caption));
     // Windows 11: rounded corners and a quiet rim, like the menu's shell (white at 8% on black).

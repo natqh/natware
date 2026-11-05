@@ -464,7 +464,6 @@ namespace settings
 	{
 		inline int menu_keybind{ VK_F6 };
 		inline bool watermark{ false };
-		inline bool streamproof{ false };
 		inline bool vsync{ false };
 		inline bool performance_mode{ false };
 		inline bool stay_loaded{ true };

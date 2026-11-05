@@ -413,12 +413,12 @@ void render_t::start_render()
 		DispatchMessage(&msg);
 	}
 
-	// Only when the setting changes: it's a call into the window manager.
-	static int applied_streamproof = -1;
-	if (applied_streamproof != (settings::menu::streamproof ? 1 : 0))
+	// Everything natware draws (launcher, waiting card, menu, ESP) stays out of screen captures.
+	static bool streamproofed = false;
+	if (!streamproofed)
 	{
-		applied_streamproof = settings::menu::streamproof ? 1 : 0;
-		SetWindowDisplayAffinity(detail->window, settings::menu::streamproof ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
+		SetWindowDisplayAffinity(detail->window, WDA_EXCLUDEFROMCAPTURE);
+		streamproofed = true;
 	}
 
 	ImGui_ImplDX11_NewFrame();

@@ -1159,7 +1159,6 @@ namespace
         ui::BeginPage("misc_settings");
         ui::BeginCard("Menu");
         ui::Keybind("Menu key", &settings::menu::menu_keybind);
-        ui::Toggle("Hide from screen capture", &settings::menu::streamproof);
         ui::Toggle("V-Sync", &settings::menu::vsync);
         ui::Toggle("Performance mode", &settings::menu::performance_mode);
         ui::Toggle("Stay loaded", &settings::menu::stay_loaded);
@@ -2252,6 +2251,27 @@ static bool ShellCloseButton(ImDrawList* dl, const char* id, ImVec2 min)
     return pressed;
 }
 
+// Where the launcher and the waiting card sit relative to screen centre, so they can be dragged
+// out of the way (by any part that isn't a button) and stay there from one to the other.
+static ImVec2 s_card_drag(0.0f, 0.0f);
+static bool s_card_dragging = false;
+
+// Call inside the card's window, after its buttons are submitted.
+static void DragCard(ImVec2 size)
+{
+    const ImGuiIO& io = ImGui::GetIO();
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && ImGui::IsWindowHovered() && !ImGui::IsAnyItemHovered())
+        s_card_dragging = true;
+    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+        s_card_dragging = false;
+    if (s_card_dragging)
+        s_card_drag = ImVec2(s_card_drag.x + io.MouseDelta.x, s_card_drag.y + io.MouseDelta.y);
+    const float rx = (std::max)(0.0f, (io.DisplaySize.x - size.x) * 0.5f);
+    const float ry = (std::max)(0.0f, (io.DisplaySize.y - size.y) * 0.5f);
+    s_card_drag.x = (std::min)((std::max)(s_card_drag.x, -rx), rx);
+    s_card_drag.y = (std::min)((std::max)(s_card_drag.y, -ry), ry);
+}
+
 // While natware waits on Roblox after External was picked: there's no console any more, so this
 // card says what it's waiting for and can close natware.
 void Menu::DrawWaiting(const char* status)
@@ -2263,7 +2283,7 @@ void Menu::DrawWaiting(const char* status)
 
     const ImVec2 size(kW, kH);
     ImGui::SetNextWindowSize(size);
-    ImGui::SetNextWindowPos(CenteredPos(size, ImVec2(0.0f, (1.0f - enter) * 18.0f)));
+    ImGui::SetNextWindowPos(CenteredPos(size, ImVec2(s_card_drag.x, s_card_drag.y + (1.0f - enter) * 18.0f)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin("##waiting", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove);
@@ -2292,6 +2312,7 @@ void Menu::DrawWaiting(const char* status)
     if (ShellCloseButton(dl, "##waiting_close", ImVec2(bb.Max.x - 16.0f - 28.0f, bb.Min.y + 16.0f))
         || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
         settings::globals::quit_requested = true;
+    DragCard(size);
     ImGui::End();
 }
 
@@ -2497,7 +2518,7 @@ void Menu::DrawModePicker()
 
     const ImVec2 size(kW, kH);
     ImGui::SetNextWindowSize(size);
-    ImGui::SetNextWindowPos(CenteredPos(size, ImVec2(0.0f, (1.0f - enter) * 18.0f - leave * 8.0f)));
+    ImGui::SetNextWindowPos(CenteredPos(size, ImVec2(s_card_drag.x, s_card_drag.y + (1.0f - enter) * 18.0f - leave * 8.0f)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin("##mode_picker", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove);
@@ -2583,6 +2604,8 @@ void Menu::DrawModePicker()
     if (update_rows)
         UpdateRows(dl, bb, kPadX, bb.Min.y + kCardY + kCardH + 16.0f, updating || chosen >= 0);
     UpdateFooter(dl, bb, kPadX, bb.Min.y + kCardY + kCardH + 16.0f + rows_h);
+    if (chosen < 0)
+        DragCard(size);
     ImGui::End();
 }
 

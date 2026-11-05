@@ -840,6 +840,11 @@ int main()
                     cache::cached_local_player = {};
                 }
 
+                // The overlay is click-through while the game runs; the waiting card needs the
+                // mouse (to drag it and to close natware), so it takes clicks until Roblox is back.
+                const LONG_PTR overlay_style = GetWindowLongPtr(render->detail->window, GWL_EXSTYLE);
+                SetWindowLongPtr(render->detail->window, GWL_EXSTYLE, WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED);
+
                 BINARY_NAME = nullptr;
                 while (true) {
                     for (int i = 0; PROCESS_NAMES[i]; i++) {
@@ -878,6 +883,7 @@ int main()
                 }
                 game::visengine = {memory->read<std::uint64_t>(memory->get_module_address() + Offsets::VisualEngine::Pointer)};
                 game::players = game::datamodel.find_first_child_by_class("Players");
+                SetWindowLongPtr(render->detail->window, GWL_EXSTYLE, overlay_style);
                 printf("Roblox re-initialized!\n");
             }
             last_pid_check = std::chrono::steady_clock::now();
