@@ -413,12 +413,15 @@ void render_t::start_render()
 		DispatchMessage(&msg);
 	}
 
-	// Everything natware draws (launcher, waiting card, menu, ESP) stays out of screen captures.
-	static bool streamproofed = false;
-	if (!streamproofed)
+	// The launcher and waiting card are always hidden from screen capture; the overlay (menu and
+	// ESP) follows the setting. Only when it changes: it's a call into the window manager.
+	static int applied_streamproof = -1;
+	const bool hide = settings::menu::streamproof || settings::globals::card_showing;
+	settings::globals::card_showing = false;   // the cards set it again as they draw
+	if (applied_streamproof != (hide ? 1 : 0))
 	{
-		SetWindowDisplayAffinity(detail->window, WDA_EXCLUDEFROMCAPTURE);
-		streamproofed = true;
+		applied_streamproof = hide ? 1 : 0;
+		SetWindowDisplayAffinity(detail->window, hide ? WDA_EXCLUDEFROMCAPTURE : WDA_NONE);
 	}
 
 	ImGui_ImplDX11_NewFrame();

@@ -464,6 +464,7 @@ namespace settings
 	{
 		inline int menu_keybind{ VK_F6 };
 		inline bool watermark{ false };
+		inline bool streamproof{ false };
 		inline bool vsync{ false };
 		inline bool performance_mode{ false };
 		inline bool stay_loaded{ true };
@@ -545,6 +546,9 @@ namespace settings
 		inline bool is_game_active{ true };
 		// Closing natware from the picker, the waiting card, the taskbar or Alt+F4.
 		inline bool quit_requested{ false };
+		// The launcher or waiting card drew this frame: the overlay window is hidden from screen
+		// capture while one shows, whatever the menu's own setting is. Set by the cards.
+		inline bool card_showing{ true };
 		inline std::string offset_validation_result{};
 	}
 

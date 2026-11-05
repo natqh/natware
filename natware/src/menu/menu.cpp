@@ -235,11 +235,6 @@ namespace
             StatusLine(aimbot::status());
             ui::EndSub();
         }
-        // Ten seconds of what the aimbot saw and did, for when the aim misbehaves in a game.
-        if (ui::Button(aim_log::recording() ? "Recording..." : "Record 10 s of aiming") && !aim_log::recording())
-            aim_log::start(10.0f);
-        if (!aim_log::status().empty())
-            ui::Text(aim_log::status().c_str());
         ui::EndCard();
 
         ui::BeginCard("Targeting");
@@ -1159,6 +1154,7 @@ namespace
         ui::BeginPage("misc_settings");
         ui::BeginCard("Menu");
         ui::Keybind("Menu key", &settings::menu::menu_keybind);
+        ui::Toggle("Hide from screen capture", &settings::menu::streamproof);
         ui::Toggle("V-Sync", &settings::menu::vsync);
         ui::Toggle("Performance mode", &settings::menu::performance_mode);
         ui::Toggle("Stay loaded", &settings::menu::stay_loaded);
@@ -2256,6 +2252,24 @@ static bool ShellCloseButton(ImDrawList* dl, const char* id, ImVec2 min)
 static ImVec2 s_card_drag(0.0f, 0.0f);
 static bool s_card_dragging = false;
 
+// The overlay covers the whole screen, so while a card shows it only takes the mouse over the
+// card (or mid-drag) and is click-through everywhere else: your other apps stay usable.
+static void CardInput(const ImRect& card)
+{
+    settings::globals::card_showing = true;
+    if (!render || !render->detail || !render->detail->window)
+        return;   // the preview tests draw without an overlay window
+    HWND const hwnd = render->detail->window;
+    POINT p{};
+    GetCursorPos(&p);
+    ScreenToClient(hwnd, &p);
+    const bool over = s_card_dragging || card.Contains(ImVec2((float)p.x, (float)p.y));
+    const LONG_PTR style = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
+    const LONG_PTR want = over ? (style & ~(LONG_PTR)WS_EX_TRANSPARENT) : (style | WS_EX_TRANSPARENT);
+    if (want != style)
+        SetWindowLongPtr(hwnd, GWL_EXSTYLE, want);
+}
+
 // Call inside the card's window, after its buttons are submitted.
 static void DragCard(ImVec2 size)
 {
@@ -2313,6 +2327,7 @@ void Menu::DrawWaiting(const char* status)
         || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
         settings::globals::quit_requested = true;
     DragCard(size);
+    CardInput(bb);
     ImGui::End();
 }
 
@@ -2606,6 +2621,7 @@ void Menu::DrawModePicker()
     UpdateFooter(dl, bb, kPadX, bb.Min.y + kCardY + kCardH + 16.0f + rows_h);
     if (chosen < 0)
         DragCard(size);
+    CardInput(bb);
     ImGui::End();
 }
 
