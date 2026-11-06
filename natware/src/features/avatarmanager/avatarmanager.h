@@ -62,5 +62,8 @@ public:
     void requestAvatar(uint64_t userId);
     ImTextureID getAvatarTexture(const std::string& userId);
     ImTextureID getAvatarTexture(uint64_t userId);
+    // The full-body render (the headshot above is a 150px face).
+    void requestBody(uint64_t userId) { requestAvatar("b:" + std::to_string(userId)); }
+    ImTextureID getBodyTexture(uint64_t userId) { return getAvatarTexture("b:" + std::to_string(userId)); }
     void update();
 };

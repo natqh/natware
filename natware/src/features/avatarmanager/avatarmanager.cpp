@@ -1,9 +1,44 @@
 #include "avatarmanager.h"
+#include <Windows.h>
+#include <wininet.h>
+#include <json/json.hpp>
 #include <imgui/imgui.h>
 #include "../../../ext/imgui/stb_image.h"
 #include <iostream>
 #include <chrono>
 #include <algorithm>
+
+#pragma comment(lib, "wininet.lib")
+
+namespace
+{
+    // The thumbnail API is public: no cookies or account data are ever sent.
+    std::string HttpGet(const std::string& url, DWORD* status_out = nullptr)
+    {
+        HINTERNET net = InternetOpenA("Mozilla/5.0", INTERNET_OPEN_TYPE_PRECONFIG, nullptr, nullptr, 0);
+        if (!net)
+            return {};
+        std::string body;
+        if (HINTERNET req = InternetOpenUrlA(net, url.c_str(), nullptr, 0,
+                INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE | INTERNET_FLAG_SECURE | INTERNET_FLAG_NO_COOKIES, 0))
+        {
+            DWORD status = 0, size = sizeof(status);
+            HttpQueryInfoA(req, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &status, &size, nullptr);
+            if (status_out)
+                *status_out = status;
+            if (status == 200)
+            {
+                char buf[8192];
+                DWORD read = 0;
+                while (InternetReadFile(req, buf, sizeof(buf), &read) && read > 0)
+                    body.append(buf, read);
+            }
+            InternetCloseHandle(req);
+        }
+        InternetCloseHandle(net);
+        return body;
+    }
+}
 #ifdef min
 #undef min
 #endif
@@ -93,10 +128,44 @@ void AvatarManager::requestAvatar(const std::string& userId) {
 }
 
 std::vector<uint8_t> AvatarManager::downloadImageFromUrl(const std::string& host, const std::string& path) {
-    return {};
+    const std::string png = HttpGet("https://" + host + path);
+    return std::vector<uint8_t>(png.begin(), png.end());
 }
 
-std::vector<uint8_t> AvatarManager::downloadAvatarSync(const std::string& userId) {
+// `key` is a user id (the headshot) or "b:<user id>" (the full-body render).
+std::vector<uint8_t> AvatarManager::downloadAvatarSync(const std::string& key) {
+    const bool body = key.rfind("b:", 0) == 0;
+    const std::string id = body ? key.substr(2) : key;
+    const std::string api = body
+        ? "https://thumbnails.roblox.com/v1/users/avatar?userIds=" + id + "&size=420x420&format=Png&isCircular=false"
+        : "https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=" + id + "&size=150x150&format=Png&isCircular=false";
+
+    // A brand-new look can still be rendering ("Pending"): ask again a few times.
+    for (int attempt = 0; attempt < 4; ++attempt) {
+        DWORD status = 0;
+        const std::string meta = HttpGet(api, &status);
+        if (status == 429) {
+            std::lock_guard<std::mutex> lock(cache_mutex);
+            last_rate_limit_time = std::chrono::steady_clock::now();
+            return {};
+        }
+        const nlohmann::json j = nlohmann::json::parse(meta, nullptr, false);
+        if (j.is_discarded() || !j.is_object() || !j.contains("data") || !j["data"].is_array() || j["data"].empty())
+            return {};
+        const nlohmann::json& entry = j["data"][0];
+        if (!entry.is_object())
+            return {};
+        const std::string state = entry.value("state", std::string());
+        if (state == "Pending") {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            continue;
+        }
+        if (state != "Completed" || !entry.contains("imageUrl") || !entry["imageUrl"].is_string())
+            return {};
+        const std::string image_url = entry["imageUrl"].get<std::string>();
+        const std::string png = HttpGet(image_url);
+        return std::vector<uint8_t>(png.begin(), png.end());
+    }
     return {};
 }
 

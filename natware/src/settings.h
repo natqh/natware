@@ -245,7 +245,6 @@ namespace settings
 		inline bool enable_enemies{ false };
 		inline int esp_key{ 0 };
 		inline int esp_key_mode{ 0 };
-		inline int esp_style{ 0 };             // 0 natware, 1 classic (pixel fonts, hard outlines)
 		inline bool enable_client{ false };
 
 		inline bool box{ false };
@@ -468,6 +467,9 @@ namespace settings
 		inline bool vsync{ false };
 		inline bool performance_mode{ false };
 		inline bool stay_loaded{ true };
+		// Where the launcher and waiting card sit, relative to screen centre (kept in last.json).
+		inline float card_x{ 0.0f };
+		inline float card_y{ 0.0f };
 	}
 
 	namespace lighting

@@ -23,6 +23,8 @@
 #include <menu/ui/ui.h>
 #include <menu/ui/veil.h>
 #include <menu/ui/profile.h>
+#include <imgui/stb_image.h>
+#include <d3d11.h>
 #include <features/chams/engine_chams.h>
 #include <features/chams/body_chams.h>
 #include <features/rage/rapidfire/rapidfire.h>
@@ -103,10 +105,10 @@ namespace
     constexpr float kSidebarW = 200.0f;
     constexpr float kShellR   = 16.0f;
     constexpr float kPad      = 16.0f;   // sidebar
-    constexpr float kNavH     = 34.0f;
-    constexpr float kNavStep  = 36.0f;
+    constexpr float kNavH     = 30.0f;
+    constexpr float kNavStep  = 32.0f;
     constexpr float kNavGap   = 16.0f;
-    constexpr float kGroupGap = 18.0f;   // space between nav groups (no caption)
+    constexpr float kGroupGap = 8.0f;    // space between nav groups (no caption)
     constexpr float kFooterH  = 48.0f;
     constexpr float kContentPadX      = 32.0f;
     constexpr float kContentPadTop    = 76.0f;
@@ -398,374 +400,6 @@ namespace
         PageAimbotMain();
     }
 
-    // ---- visuals preview ----------------------------------------------------------------
-    // A mannequin with your current ESP on it: the same chams renderer and drawing code the game
-    // uses, turning slowly (drag to turn it yourself). It sits straight on the card's glass, so the
-    // Dark Veil shows through like everywhere else in the menu.
-
-    int alpha_of_col(ImU32 c) { return static_cast<int>((c >> IM_COL32_A_SHIFT) & 0xFF); }
-
-    math::matrix3 PreviewRotY(float a)
-    {
-        math::matrix3 r = math::matrix3::identity();
-        r.m[0][0] = cosf(a); r.m[0][2] = sinf(a); r.m[2][0] = -sinf(a); r.m[2][2] = cosf(a);
-        return r;
-    }
-
-    math::matrix3 PreviewRotZ(float a)
-    {
-        math::matrix3 r = math::matrix3::identity();
-        r.m[0][0] = cosf(a); r.m[0][1] = -sinf(a); r.m[1][0] = sinf(a); r.m[1][1] = cosf(a);
-        return r;
-    }
-
-    math::matrix3 PreviewMul(const math::matrix3& a, const math::matrix3& b)
-    {
-        math::matrix3 r{};
-        for (int i = 0; i < 3; i++)
-            for (int j = 0; j < 3; j++)
-                r.m[i][j] = a.m[i][0] * b.m[0][j] + a.m[i][1] * b.m[1][j] + a.m[i][2] * b.m[2][j];
-        return r;
-    }
-
-    // An R15 mannequin standing at the origin, arms a little out, turned by `yaw`.
-    rig::body_t PreviewBody(float yaw)
-    {
-        struct piece { const char* name; math::vector3 size, pos; float roll; math::vector3 pivot; };
-        static const piece pieces[] = {
-            { "LeftFoot", { 1, 0.3f, 1 }, { -0.5f, 0.15f, 0 }, 0, {} }, { "RightFoot", { 1, 0.3f, 1 }, { 0.5f, 0.15f, 0 }, 0, {} },
-            { "LeftLowerLeg", { 1, 1.1f, 1 }, { -0.5f, 0.85f, 0 }, 0, {} }, { "RightLowerLeg", { 1, 1.1f, 1 }, { 0.5f, 0.85f, 0 }, 0, {} },
-            { "LeftUpperLeg", { 1, 1.2f, 1 }, { -0.5f, 2.0f, 0 }, 0, {} }, { "RightUpperLeg", { 1, 1.2f, 1 }, { 0.5f, 2.0f, 0 }, 0, {} },
-            { "LowerTorso", { 2, 0.4f, 1 }, { 0, 2.8f, 0 }, 0, {} }, { "UpperTorso", { 2, 1.6f, 1 }, { 0, 3.8f, 0 }, 0, {} },
-            { "Head", { 1.2f, 1.2f, 1.2f }, { 0, 5.2f, 0 }, 0, {} },
-            { "LeftUpperArm", { 1, 1.2f, 1 }, { -1.5f, 4.0f, 0 }, -0.14f, { -1.5f, 4.6f, 0 } },
-            { "RightUpperArm", { 1, 1.2f, 1 }, { 1.5f, 4.0f, 0 }, 0.14f, { 1.5f, 4.6f, 0 } },
-            { "LeftLowerArm", { 1, 1.1f, 1 }, { -1.5f, 2.85f, 0 }, -0.14f, { -1.5f, 4.6f, 0 } },
-            { "RightLowerArm", { 1, 1.1f, 1 }, { 1.5f, 2.85f, 0 }, 0.14f, { 1.5f, 4.6f, 0 } },
-            { "LeftHand", { 1, 0.3f, 1 }, { -1.5f, 2.15f, 0 }, -0.14f, { -1.5f, 4.6f, 0 } },
-            { "RightHand", { 1, 0.3f, 1 }, { 1.5f, 2.15f, 0 }, 0.14f, { 1.5f, 4.6f, 0 } },
-        };
-        rig::body_t body;
-        body.kind = rig::kind_t::r15;
-        const math::matrix3 turn = PreviewRotY(yaw);
-        for (const piece& pc : pieces)
-        {
-            rig::part_t p;
-            p.name = pc.name;
-            p.size = pc.size;
-            p.rot = math::matrix3::identity();
-            p.pos = pc.pos;
-            if (pc.roll != 0.0f)
-            {
-                const math::matrix3 r = PreviewRotZ(pc.roll);
-                p.pos = pc.pivot + r * (pc.pos - pc.pivot);
-                p.rot = r;
-            }
-            p.pos = turn * p.pos;
-            p.rot = PreviewMul(turn, p.rot);
-            body.parts.push_back(p);
-        }
-        return body;
-    }
-
-    // A soft ellipse fading from `inner` at the centre to clear at the rim, as one mesh (stacked
-    // circles showed as rings).
-    void SoftEllipse(ImDrawList* dl, ImVec2 c, ImVec2 radius, ImU32 inner, int segments = 48)
-    {
-        const ImVec2 uv = dl->_Data->TexUvWhitePixel;
-        const ImU32 outer = inner & ~IM_COL32_A_MASK;
-        dl->PrimReserve(segments * 3, segments + 1);
-        const ImDrawIdx base = static_cast<ImDrawIdx>(dl->_VtxCurrentIdx);
-        dl->PrimWriteVtx(c, uv, inner);
-        for (int i = 0; i < segments; ++i)
-        {
-            const float t = i * IM_PI * 2.0f / segments;
-            dl->PrimWriteVtx(ImVec2(c.x + cosf(t) * radius.x, c.y + sinf(t) * radius.y), uv, outer);
-        }
-        for (int i = 0; i < segments; ++i)
-        {
-            dl->PrimWriteIdx(base);
-            dl->PrimWriteIdx(static_cast<ImDrawIdx>(base + 1 + i));
-            dl->PrimWriteIdx(static_cast<ImDrawIdx>(base + 1 + (i + 1) % segments));
-        }
-    }
-
-    // The mannequin's visible faces, far to near, lit from the upper front left: a clay figure
-    // in the menu's whites and greys. `shade_only` draws just the darkening, to lay the same
-    // lighting over chams drawn on top of it. `inset` (studs) shrinks every part: chams round
-    // their parts' corners, and a full-size box peeked out around them.
-    template <typename Project>
-    void DrawMannequin(ImDrawList* dl, const rig::body_t& body, const math::vector3& eye, Project&& project, bool shade_only, float inset = 0.0f)
-    {
-        struct face_t { ImVec2 pts[4]; float depth; float shade; bool head; };
-        std::vector<face_t> faces;
-        faces.reserve(body.parts.size() * 3);
-        const math::vector3 light = math::vector3{ -0.35f, 0.6f, 0.72f }.normalized();
-        for (const rig::part_t& p : body.parts)
-        {
-            const math::vector3 h{ (std::max)(0.05f, p.size.x * 0.5f - inset), (std::max)(0.05f, p.size.y * 0.5f - inset), (std::max)(0.05f, p.size.z * 0.5f - inset) };
-            for (int k = 0; k < 3; ++k)
-                for (int sign = -1; sign <= 1; sign += 2)
-                {
-                    math::vector3 local_n{}, local_c{};
-                    local_n[k] = static_cast<float>(sign);
-                    local_c[k] = sign * h[k];
-                    const math::vector3 n = p.rot * local_n;
-                    const math::vector3 centre = p.pos + p.rot * local_c;
-                    if (n.dot(eye - centre) <= 0.0f)
-                        continue;   // faces away from the camera
-                    const int u = (k + 1) % 3, v = (k + 2) % 3;
-                    static const float su[4] = { -1, 1, 1, -1 }, sv[4] = { -1, -1, 1, 1 };
-                    face_t f{};
-                    bool on_screen = true;
-                    for (int i = 0; i < 4 && on_screen; ++i)
-                    {
-                        math::vector3 l = local_c;
-                        l[u] = su[i] * h[u];
-                        l[v] = sv[i] * h[v];
-                        on_screen = project(p.pos + p.rot * l, f.pts[i]);
-                    }
-                    if (!on_screen)
-                        continue;
-                    f.depth = (eye - centre).length();
-                    f.shade = 0.55f + 0.45f * (std::max)(0.0f, n.dot(light));
-                    f.head = p.name == "Head";
-                    faces.push_back(f);
-                }
-        }
-        std::sort(faces.begin(), faces.end(), [](const face_t& a, const face_t& b) { return a.depth > b.depth; });
-
-        // Faces meet edge to edge: anti-aliased fills left hairline gaps between them.
-        const ImDrawListFlags flags = dl->Flags;
-        dl->Flags &= ~ImDrawListFlags_AntiAliasedFill;
-        for (const face_t& f : faces)
-        {
-            if (shade_only)
-            {
-                dl->AddQuadFilled(f.pts[0], f.pts[1], f.pts[2], f.pts[3], IM_COL32(0, 0, 0, static_cast<int>((1.0f - f.shade) * 190.0f)));
-                continue;
-            }
-            const float base = f.head ? 238.0f : 224.0f;
-            const int g = static_cast<int>(base * f.shade);
-            dl->AddQuadFilled(f.pts[0], f.pts[1], f.pts[2], f.pts[3], IM_COL32(g, g, (std::min)(255, g + 5), 255));
-        }
-        dl->Flags = flags;
-        if (!shade_only)
-            for (const face_t& f : faces)
-                dl->AddQuad(f.pts[0], f.pts[1], f.pts[2], f.pts[3], IM_COL32(0, 0, 0, 34), 1.0f);
-    }
-
-    void VisualsPreview()
-    {
-        namespace v = settings::visuals;
-        ui::BeginCard("Preview");
-        ImGuiWindow* w = ImGui::GetCurrentWindow();
-        ImDrawList* dl = w->DrawList;
-        const float width = ui::RowWidth();
-        const float height = 320.0f;
-        const ImVec2 a = w->DC.CursorPos;
-        const ImRect r(a, ImVec2(a.x + width, a.y + height));
-        ImGui::ItemSize(r.GetSize());
-        const ImGuiID id = w->GetID("##visuals_preview");
-        if (!ImGui::ItemAdd(r, id))
-        {
-            ui::EndCard();
-            return;
-        }
-
-        // Sways around a three-quarter view; drag to turn it.
-        static float drag = 0.0f;
-        bool hovered = false, held = false;
-        ImGui::ButtonBehavior(r, id, &hovered, &held);
-        if (held)
-            drag += ImGui::GetIO().MouseDelta.x * 0.012f;
-        const float yaw = 0.55f * sinf(static_cast<float>(ImGui::GetTime()) * 0.6f) + 0.35f + drag;
-        if (hovered || held)
-            ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
-
-        // No backdrop of its own: the figure stands on the card's glass.
-        dl->PushClipRect(r.Min, r.Max, true);
-
-        // Camera: 13.5 studs out, so the 5.8-stud figure fills about 70% of the height and the
-        // name above and the info below still fit.
-        const float aspect = width / height;
-        const math::vector3 eye{ 0.0f, 3.4f, 13.5f };
-        math::matrix4 vp{};
-        {
-            const math::vector3 target{ 0.0f, 2.75f, 0.0f };
-            const math::vector3 back = (eye - target).normalized();
-            const math::vector3 right = math::vector3{ 0, 1, 0 }.cross(back).normalized();
-            const math::vector3 up = back.cross(right);
-            const float f = 1.0f / tanf(34.0f * 3.14159265f / 360.0f);
-            const math::vector3 rows[3] = { right, up, back };
-            float V[4][4]{};
-            for (int i = 0; i < 3; i++) { V[i][0] = rows[i].x; V[i][1] = rows[i].y; V[i][2] = rows[i].z; V[i][3] = -rows[i].dot(eye); }
-            V[3][3] = 1.0f;
-            float P[4][4]{};
-            P[0][0] = f / aspect; P[1][1] = f; P[2][2] = -1.0f; P[2][3] = -0.2f; P[3][2] = -1.0f;
-            for (int i = 0; i < 4; i++) for (int j = 0; j < 4; j++) { float sum = 0; for (int k = 0; k < 4; k++) sum += P[i][k] * V[k][j]; vp.m[i][j] = sum; }
-        }
-        auto project = [&](const math::vector3& p, ImVec2& out)
-        {
-            const math::vector4 q = vp.multiply({ p.x, p.y, p.z, 1.0f });
-            if (q.w < 0.1f)
-                return false;
-            out = ImVec2(r.Min.x + (q.x / q.w * 0.5f + 0.5f) * width, r.Min.y + (0.5f - q.y / q.w * 0.5f) * height);
-            return true;
-        };
-
-        const rig::body_t body = PreviewBody(yaw);
-
-        // A soft contact shadow under its feet, then the figure.
-        ImVec2 feet;
-        if (project({ 0.0f, 0.0f, 0.0f }, feet))
-            SoftEllipse(dl, feet, ImVec2(64.0f, 11.0f), IM_COL32(0, 0, 0, 150));
-        // With chams on they are the body: only the figure's lighting goes over them.
-        if (!v::chams)
-            DrawMannequin(dl, body, eye, project, false);
-
-        // Chams through the real renderer (Roblox highlight is drawn by the game, so a flat fill
-        // stands in for it here), rendered at twice the size so its edges come out smooth, and
-        // the figure's lighting laid back over it so it still reads as a body.
-        if (v::chams)
-        {
-            body_chams::frame_t frame;
-            frame.view_projection = vp;
-            frame.dims = { width * 2.0f, height * 2.0f };
-            frame.effect = v::chams_style == 1 ? body_chams::effect_water + v::chams_effect : body_chams::effect_flat;
-            frame.speed = v::chams_texture_speed;
-            frame.scale = v::chams_texture_scale;
-            float fill[4] = { v::chams_fill_color[0], v::chams_fill_color[1], v::chams_fill_color[2], v::chams_fill_enabled ? v::chams_fill_color[3] : 0.0f };
-            float outline[4] = { v::chams_outline_color[0], v::chams_outline_color[1], v::chams_outline_color[2], v::chams_outline_enabled ? v::chams_outline_color[3] : 0.0f };
-            if (const ImTextureID tex = body_chams::render_preview(&body, 1, fill, outline, frame))
-            {
-                dl->AddImage(tex, r.Min, r.Max);
-                DrawMannequin(dl, body, eye, project, true, 0.04f);
-            }
-        }
-
-        if (v::skeleton)
-        {
-            std::vector<std::pair<math::vector3, math::vector3>> bones;
-            std::vector<std::pair<ImVec2, ImVec2>> lines;
-            rig::skeleton(body, bones);
-            for (const auto& [p, q] : bones)
-            {
-                ImVec2 sp, sq;
-                if (project(p, sp) && project(q, sq))
-                    lines.emplace_back(sp, sq);
-            }
-            esp_draw::skeleton(dl, lines, ImGui::ColorConvertFloat4ToU32(ImVec4(v::skeleton_color[0], v::skeleton_color[1], v::skeleton_color[2], v::skeleton_color[3])),
-                v::skeleton_thickness);
-        }
-
-        // The box around every part's corners, then the labels.
-        ImVec2 mn(FLT_MAX, FLT_MAX), mx(-FLT_MAX, -FLT_MAX);
-        for (const rig::part_t& p : body.parts)
-            for (int i = 0; i < 8; ++i)
-            {
-                const math::vector3 corner{ (i & 1) ? 0.5f : -0.5f, (i & 2) ? 0.5f : -0.5f, (i & 4) ? 0.5f : -0.5f };
-                ImVec2 s;
-                if (project(p.pos + p.rot * math::vector3{ corner.x * p.size.x, corner.y * p.size.y, corner.z * p.size.z }, s))
-                {
-                    mn = ImMin(mn, s);
-                    mx = ImMax(mx, s);
-                }
-            }
-
-        auto col = [](const float* c) { return ImGui::ColorConvertFloat4ToU32(ImVec4(c[0], c[1], c[2], c[3])); };
-        esp_draw::player_t look{};
-        look.min = mn;
-        look.max = mx;
-        if (v::box)
-        {
-            look.box = col(v::box_color);
-            look.box_style = v::box_type == 1 ? 1 : v::box_type == 4 ? 2 : 0;
-        }
-        if (v::box_fill)
-            look.fill = col(v::box_fill_color);
-        if (v::name)
-        {
-            look.name = v::name_display_type == 0 ? "natware" : "natware_user";
-            look.name_col = col(v::blend ? v::name_color_blend_start : v::name_color);
-            look.accent = IM_COL32(107, 18, 255, 255);
-        }
-        if (v::healthbar || v::health_percent)
-        {
-            look.health = 0.72f;
-            look.bar_alpha = v::healthbar ? 1.0f : 0.0f;
-            if (v::healthbar && !v::health_based_healthbar)
-                look.health_col = col(v::healthbar_color);
-            look.health_text = v::health_percent;
-            look.health_text_col = col(v::health_percent_color);
-        }
-        if (v::armorbar)
-        {
-            look.armor = 0.45f;
-            look.armor_col = col(v::armorbar_color);
-        }
-        char info[64] = {};
-        if (v::distance)
-            snprintf(info, sizeof(info), v::distance_measurement == 1 ? "7 m" : "24 studs");
-        if (v::tool)
-        {
-            const size_t n = strlen(info);
-            snprintf(info + n, sizeof(info) - n, "%sRifle", n ? "  \xC2\xB7  " : "");
-        }
-        if (info[0])
-        {
-            look.info = info;
-            look.info_col = col(v::distance ? v::distance_color : v::tool_color);
-        }
-        if (v::flags)
-        {
-            look.flag = "Running";
-            look.flag_col = col(v::flags_state_colour);
-        }
-
-        if (v::esp_style == 1)
-        {
-            // Classic: hard pixel box and outlined pixel text, like the old ESP.
-            if (alpha_of_col(look.box))
-            {
-                dl->AddRect(look.min, look.max, IM_COL32(0, 0, 0, 255));
-                dl->AddRect(ImVec2(look.min.x - 1, look.min.y - 1), ImVec2(look.max.x + 1, look.max.y + 1), look.box);
-                dl->AddRect(ImVec2(look.min.x - 2, look.min.y - 2), ImVec2(look.max.x + 2, look.max.y + 2), IM_COL32(0, 0, 0, 255));
-            }
-            ImFont* font = v::esp_font == 0 ? esp_font_tahoma : v::esp_font == 1 ? esp_font_sp7 : esp_font_arial;
-            const float size = v::esp_font == 0 ? font_config::tahoma::font_size : v::esp_font == 1 ? font_config::sp7::font_size : font_config::arial::font_size;
-            if (font && look.name)
-            {
-                const ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, look.name);
-                const ImVec2 pos(roundf((look.min.x + look.max.x - ts.x) * 0.5f), roundf(look.min.y - size - 5.0f));
-                for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) if (x || y) dl->AddText(font, size, ImVec2(pos.x + x, pos.y + y), IM_COL32(0, 0, 0, 255), look.name);
-                dl->AddText(font, size, pos, look.name_col, look.name);
-            }
-            if (look.health >= 0.0f && look.bar_alpha > 0.0f)
-            {
-                dl->AddRectFilled(ImVec2(look.min.x - 7, look.min.y - 2), ImVec2(look.min.x - 3, look.max.y + 2), IM_COL32(0, 0, 0, 255));
-                const float fill_h = (look.max.y - look.min.y + 2.0f) * look.health;
-                dl->AddRectFilled(ImVec2(look.min.x - 6, look.max.y + 1 - fill_h), ImVec2(look.min.x - 4, look.max.y + 1),
-                    look.health_col ? look.health_col : IM_COL32(0, 255, 0, 255));
-            }
-            if (font && look.info)
-            {
-                const ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, look.info);
-                const ImVec2 pos(roundf((look.min.x + look.max.x - ts.x) * 0.5f), roundf(look.max.y + 5.0f));
-                for (int x = -1; x <= 1; x++) for (int y = -1; y <= 1; y++) if (x || y) dl->AddText(font, size, ImVec2(pos.x + x, pos.y + y), IM_COL32(0, 0, 0, 255), look.info);
-                dl->AddText(font, size, pos, look.info_col, look.info);
-            }
-        }
-        else
-        {
-            esp_draw::player(dl, look);
-        }
-
-        dl->AddText(ui::Regular(), 12.0f, ImVec2(r.Min.x + 14.0f, r.Max.y - 24.0f), IM_COL32(255, 255, 255, 80), "Drag to turn");
-        dl->PopClipRect();
-        ui::EndCard();
-    }
-
     // ESP on other players: what to draw, how it looks, and who it skips. Each option's own
     // settings sit right under it.
     void PageVisuals()
@@ -786,11 +420,8 @@ namespace
             ui::EndCard();
         }
 
-        VisualsPreview();
-
         ui::BeginCard("Players");
         ui::ToggleKey("Enabled", &v::enable_enemies, &v::esp_key, &v::esp_key_mode);
-        ui::Combo("Look", &v::esp_style, { "natware", "Classic" });
         ui::Toggle("Team check", &v::teamcheck);
         ui::Toggle("Team colours", &v::use_team_color);
         ui::Toggle("Target warning icon", &v::target_warning_icon);
@@ -873,8 +504,6 @@ namespace
         ui::Toggle("Team name", &v::team_name);
         ui::ToggleColor("Tool", &v::tool, v::tool_color);
         ui::ToggleColor("Flags", &v::flags, v::flags_state_colour);
-        if (v::esp_style == 1)
-            ui::Combo("Font", &v::esp_font, { "Tahoma", "Smallest Pixel", "Arial" });
         ui::EndCard();
 
         ui::BeginCard("Filters");
@@ -1159,8 +788,11 @@ namespace
         ui::Toggle("Performance mode", &settings::menu::performance_mode);
         ui::Toggle("Stay loaded", &settings::menu::stay_loaded);
         ui::Toggle("Uncap client FPS", &settings::cilent::fpscaps::enabled);
-        ui::Spacing(10.0f);
-        if (ui::Button("Save diagnostics"))
+        // Two quiet actions at the right, sized to their words: the settings above stay the
+        // heaviest thing in the card, and Unload never shouts.
+        constexpr float kDiagW = 160.0f, kUnloadW = 100.0f;
+        ui::AlignRight(kDiagW + 8.0f + kUnloadW);
+        if (ui::Button("Save diagnostics", ui::Btn::Secondary, kDiagW))
         {
             // There is no console: the report goes to data\diagnostics.txt, opened for reading.
             FILE* f = nullptr;
@@ -1180,8 +812,8 @@ namespace
                 ShellExecuteA(nullptr, "open", "data\\diagnostics.txt", nullptr, nullptr, SW_SHOWNORMAL);
             }
         }
-        ui::Spacing(6.0f);
-        if (ui::Button("Unload", ui::Btn::Danger))
+        ImGui::SameLine(0.0f, 8.0f);
+        if (ui::Button("Unload", ui::Btn::Danger, kUnloadW))
             settings::globals::quit_requested = true;   // the main loop exits cleanly next frame
         ui::EndCard();
 
@@ -1240,21 +872,9 @@ namespace
         if (!sel)
             selected.clear();
 
-        ui::BeginPage("config");
-        ui::BeginCard("Save");
-        if (ui::InputText("##config_name", config_name, sizeof(config_name), "Config name"))
-            selected.clear();
-        ui::Spacing(10.0f);
-        const bool overwrite = config_name[0] != '\0' && config::config_exists(config_name);
-        ImGui::BeginDisabled(config_name[0] == '\0');
-        if (ui::Button(overwrite ? "Overwrite config" : "Save config", ui::Btn::Primary) && config::save_config(config_name))
-        {
-            config::watch(true);
-            selected = config::loaded();
-            memset(config_name, 0, sizeof(config_name));
-        }
-        ImGui::EndDisabled();
-        ui::EndCard();
+        // Two columns: the configs themselves on the left, with what you can do to the selected
+        // one right under the list; saving and the folder on the right.
+        ui::BeginColumns("config");
 
         ui::BeginCard("Configs");
         if (configs.empty())
@@ -1272,63 +892,90 @@ namespace
             }
             ImGui::PopID();
         }
+        if (sel)
+        {
+            ui::Spacing(12.0f);
+            const float half = floorf((ui::RowWidth() - 8.0f) * 0.5f);
+            if (ui::Button("Load", ui::Btn::Primary, half))
+                config::load_config(sel->name);
+            ImGui::SameLine(0.0f, 8.0f);
+            if (ui::Button("Delete", ui::Btn::Danger, half) && config::delete_config(sel->name))
+            {
+                if (external_config::autoload_config == selected)
+                {
+                    external_config::autoload_config.clear();
+                    external_config::save();
+                }
+                selected.clear();
+                memset(config_name, 0, sizeof(config_name));
+                config::watch(true);
+            }
+            if (sel && !selected.empty())
+            {
+                ui::Spacing(8.0f);
+                const bool is_autoload = external_config::autoload_config == sel->name;
+                if (ui::Button(is_autoload ? "Don't load on startup" : "Load on startup"))
+                {
+                    external_config::autoload_config = is_autoload ? "" : sel->name;
+                    external_config::save();
+                }
+            }
+            ui::Spacing(6.0f);
+        }
         if (config::last_message_time() < 6.0)
             ui::Text(config::last_message().c_str());
         ui::EndCard();
 
-        ui::BeginCard("Selected");
-        ui::Value("Config", sel ? sel->name.c_str() : "None", sel ? ui::col::text : ui::col::text_faint);
-        ui::Spacing(10.0f);
-        ImGui::BeginDisabled(!sel);
-        const float half = (ui::RowWidth() - 8.0f) * 0.5f;
-        if (ui::Button("Load", ui::Btn::Primary, half) && sel)
-            config::load_config(sel->name);
-        ImGui::SameLine(0.0f, 8.0f);
-        if (ui::Button("Delete", ui::Btn::Danger, half) && sel && config::delete_config(sel->name))
+        ui::NextColumn();
+
+        ui::BeginCard("Save");
         {
-            if (external_config::autoload_config == selected)
+            const bool overwrite = config_name[0] != '\0' && config::config_exists(config_name);
+            const float button_w = overwrite ? 104.0f : 76.0f;
+            if (ui::InputText("##config_name", config_name, sizeof(config_name), "Config name", ui::RowWidth() - button_w - 8.0f))
+                selected.clear();
+            ImGui::SameLine(0.0f, 8.0f);
+            ImGui::BeginDisabled(config_name[0] == '\0');
+            if (ui::Button(overwrite ? "Overwrite" : "Save", ui::Btn::Primary, button_w) && config::save_config(config_name))
             {
-                external_config::autoload_config.clear();
-                external_config::save();
+                config::watch(true);
+                selected = config::loaded();
+                memset(config_name, 0, sizeof(config_name));
             }
-            selected.clear();
-            memset(config_name, 0, sizeof(config_name));
-            config::watch(true);
+            ImGui::EndDisabled();
+            ui::Spacing(6.0f);
         }
-        ui::Spacing(10.0f);
-        {
-            const bool is_autoload = sel && external_config::autoload_config == sel->name;
-            if (ui::Button(is_autoload ? "Don't load on startup" : "Load on startup") && sel)
-            {
-                external_config::autoload_config = is_autoload ? "" : sel->name;
-                external_config::save();
-            }
-        }
-        ImGui::EndDisabled();
         ui::EndCard();
 
         ui::BeginCard("Folder");
         ui::Value("On startup", external_config::autoload_config.empty() ? "None" : external_config::autoload_config.c_str(),
             external_config::autoload_config.empty() ? ui::col::text_faint : ui::col::text);
-        ui::Text("New .json files in the configs folder show up here on their own.");
-        ui::Spacing(6.0f);
-        const float half2 = (ui::RowWidth() - 8.0f) * 0.5f;
-        if (ui::Button("Open folder", ui::Btn::Secondary, half2))
-            config::open_file_location();
-        ImGui::SameLine(0.0f, 8.0f);
-        if (ui::Button("Refresh", ui::Btn::Secondary, half2))
-            config::watch(true);
-        ui::Spacing(10.0f);
-        if (ui::Button("Reset to defaults", ui::Btn::Danger))
-            config::reset_to_defaults();
+        ui::Text("New .json files in the folder show up here on their own.");
+        ui::Spacing(4.0f);
+        {
+            const float half = floorf((ui::RowWidth() - 8.0f) * 0.5f);
+            if (ui::Button("Open folder", ui::Btn::Secondary, half))
+                config::open_file_location();
+            ImGui::SameLine(0.0f, 8.0f);
+            if (ui::Button("Refresh", ui::Btn::Secondary, half))
+                config::watch(true);
+            ui::Spacing(8.0f);
+            if (ui::Button("Reset to defaults", ui::Btn::Danger))
+                config::reset_to_defaults();
+            ui::Spacing(6.0f);
+        }
         ui::EndCard();
-        ui::EndPage();
+
+        ui::EndColumns();
     }
 
     // ---- shell -------------------------------------------------------------------
 
     void DrawSidebar(ImDrawList* dl, const ImRect& sb)
     {
+        // The sidebar sits on a darker band, so the nav reads at a glance and the field's glow
+        // shows through it only softly.
+        dl->AddRectFilled(sb.Min, sb.Max, IM_COL32(12, 8, 6, 160), kShellR, ImDrawFlags_RoundCornersLeft);
         dl->AddLine(ImVec2(sb.Max.x, sb.Min.y + kPad), ImVec2(sb.Max.x, sb.Max.y - kPad), ui::col::line);
 
         if (s_page == PageSilentAim && !SilentAimAvailable())
@@ -1336,7 +983,7 @@ namespace
 
         const float x0 = sb.Min.x + 10.0f, x1 = sb.Max.x - 10.0f;
         float item_y[PageCount] = {};
-        dl->AddText(ui::Brand(), 18.0f, ImVec2(sb.Min.x + 22, sb.Min.y + 20), ui::col::white, "natware");
+        ui::PixelText(dl, ImVec2(sb.Min.x + 22, sb.Min.y + 20), ui::col::white, "natware");
         float y = sb.Min.y + kPad + 48.0f;
         for (int i = 0; i < PageCount; i++)
         {
@@ -1344,7 +991,7 @@ namespace
             if (i == PageSilentAim && !SilentAimAvailable())
                 continue;
             if (kNav[i].group_start && i != 0)
-                y += kGroupGap;
+                y += kGroupGap;   // groups are told apart by the gap alone
             item_y[i] = y;
             y += kNavStep;
         }
@@ -1356,7 +1003,9 @@ namespace
         if (pane_y < 0.0f)
             pane_y = pane_target;
         pane_y = ui::Spring(pane_y, pane_v, pane_target, 0.28f);
-        ui::veil::Glass(dl, ImVec2(x0, sb.Min.y + pane_y), ImVec2(x1, sb.Min.y + pane_y + kNavH), 8.0f);
+        const ImVec2 pane0(x0, sb.Min.y + pane_y), pane1(x1, sb.Min.y + pane_y + kNavH);
+        ui::veil::Glass(dl, pane0, pane1, 8.0f, 0.35f, -180.0f);
+        dl->AddRectFilled(pane0, pane1, IM_COL32(255, 255, 255, 16), 8.0f);   // lifts it off the dark sidebar without an outline
 
         for (int i = 0; i < PageCount; i++)
         {
@@ -1501,7 +1150,7 @@ namespace
 
         // The scroll area runs kScrollGutter past the cards' right edge (that strip holds the
         // scroll indicator), so the cards themselves sit kContentPadX from the shell.
-        dl->AddText(ui::SemiBold(), 24.0f, ImVec2(sidebar.Max.x + kContentPadX, wbb.Min.y + 22), ui::col::text, kNav[s_page].label);
+        dl->AddText(ui::Regular(), 24.0f, ImVec2(sidebar.Max.x + kContentPadX, wbb.Min.y + 22), ui::col::white, kNav[s_page].label);   // Arial (the user's call); section labels stay Monocraft
         dl->AddLine(ImVec2(sidebar.Max.x + kContentPadX, wbb.Min.y + 63), ImVec2(wbb.Max.x - kContentPadX, wbb.Min.y + 63), ui::col::line);
         const float cx = sidebar.Max.x + kContentPadX;
         ImGui::SetCursorScreenPos(ImVec2(cx, wbb.Min.y + kContentPadTop + (1.0f - eased) * 20.0f));
@@ -1561,7 +1210,7 @@ namespace
         constexpr float kBarH = 44.0f, kToolPad = 12.0f;
         const float bar_cy = wbb.Min.y + kBarH * 0.5f;
         ui::DrawIcon(dl, icon, ImVec2(wbb.Min.x + kToolPad + 9.0f, bar_cy), ui::col::text, 0.9f);
-        dl->AddText(ui::SemiBold(), 15.0f, ImVec2(wbb.Min.x + kToolPad + 26.0f, InkCentredTop(ui::SemiBold(), 15.0f, '0', bar_cy)), ui::col::white, title);
+        ui::PixelText(dl, ImVec2(wbb.Min.x + kToolPad + 26.0f, InkCentredTop(ui::Brand(), 18.0f, 'A', bar_cy)), ui::col::white, title);
 
         const ImRect close(ImVec2(wbb.Max.x - kToolPad - 26.0f, bar_cy - 13.0f), ImVec2(wbb.Max.x - kToolPad, bar_cy + 13.0f));
         const ImGuiID close_id = window->GetID("##close");
@@ -1571,7 +1220,7 @@ namespace
             *open = false;
         if (hovered)
             dl->AddRectFilled(close.Min, close.Max, IM_COL32(255, 255, 255, 16), 6.0f);
-        ui::DrawIcon(dl, ui::Icon::Close, close.GetCenter(), hovered ? ui::col::white : ui::col::text_dim, 0.9f);
+        ui::DrawIcon(dl, ui::Icon::Close, close.GetCenter(), hovered ? ui::col::white : ui::col::text, 1.0f);
 
         dl->AddLine(ImVec2(wbb.Min.x + kToolPad, wbb.Min.y + kBarH), ImVec2(wbb.Max.x - kToolPad, wbb.Min.y + kBarH), ui::col::line);
 
@@ -1598,6 +1247,9 @@ namespace
         ImDrawList* dl = ImGui::GetWindowDrawList();
         const ImVec2 p = ImGui::GetCursorScreenPos();
         ui::veil::Glass(dl, p, ImVec2(p.x + size.x, p.y + size.y), 10.0f);
+        // The same dark surface and rim the menu's cards have, so the tree sits on even ground.
+        dl->AddRectFilled(p, ImVec2(p.x + size.x, p.y + size.y), IM_COL32(12, 8, 6, 232), 10.0f);
+        dl->AddRect(p, ImVec2(p.x + size.x, p.y + size.y), IM_COL32(255, 225, 190, 22), 10.0f);
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, 8.0f));
         if (ImGui::BeginChild(id, size, ImGuiChildFlags_AlwaysUseWindowPadding, ImGuiWindowFlags_NoBackground))
             body();
@@ -1649,6 +1301,59 @@ namespace
         });
 
         EndToolWindow();
+    }
+
+    // A player's headshot spec: the user id is read from the game once per player, the picture
+    // comes from the same cache the ESP name pills use, and the ring marks target and whitelist.
+    // The screenshot tests have no game to read user ids from: they give the sample players real
+    // accounts so the headshots and portraits can be seen.
+    bool s_preview = false;
+    std::unordered_map<std::string, std::uint64_t> s_preview_ids;
+
+    // `body` also asks for the full-body render (only the selected player needs it).
+    ui::AvatarSpec PlayerAvatar(const cache::entity_t& e, bool targeted, bool whitelisted, bool body = false)
+    {
+        static std::unordered_map<std::uint64_t, std::pair<std::string, std::uint64_t>> user_ids;
+        ui::AvatarSpec spec;
+        const std::string& name = e.display_name.empty() ? e.name : e.display_name;
+        spec.initial = name.empty() ? '?' : static_cast<char>(toupper(static_cast<unsigned char>(name[0])));
+        (void)targeted;
+        (void)whitelisted;   // standing is shown in words (the row's detail, the Status row), not as an outline
+        if (!g_avatar_manager)
+            return spec;
+
+        std::uint64_t id = 0;
+        if (s_preview)
+        {
+            g_avatar_manager->update();
+            const auto it = s_preview_ids.find(e.name);
+            if (it != s_preview_ids.end())
+                id = it->second;
+        }
+        else if (e.instance.address != 0)
+        {
+            auto& entry = user_ids[e.instance.address];
+            if (entry.first != e.name)
+            {
+                std::uint64_t read = 0;
+                try { read = memory->read<std::uint64_t>(e.instance.address + Offsets::Player::UserId); } catch (...) {}
+                if (read == 0xFFFFFFFFFFFFFFFF)
+                    read = 0;
+                entry = { e.name, read };
+            }
+            id = entry.second;
+        }
+        if (id != 0)
+        {
+            g_avatar_manager->requestAvatar(id);
+            spec.tex = g_avatar_manager->getAvatarTexture(id);
+            if (body)
+            {
+                g_avatar_manager->requestBody(id);
+                spec.body = g_avatar_manager->getBodyTexture(id);
+            }
+        }
+        return spec;
     }
 
     void DrawPlayerList()
@@ -1723,8 +1428,9 @@ namespace
             snprintf(detail, sizeof(detail), "%s%.0f HP", is_tgt ? "Target \xC2\xB7 " : (wl ? "Whitelisted \xC2\xB7 " : ""), entity.health);
             const std::string& label = entity.display_name.empty() ? entity.name : entity.display_name;
 
+            const ui::AvatarSpec avatar = PlayerAvatar(entity, is_tgt, wl);
             ImGui::PushID(i);
-            if (ui::ListItem(label.c_str(), is_selected, detail, is_tgt ? ui::col::danger : ui::col::text))
+            if (ui::ListItem(label.c_str(), is_selected, detail, is_tgt ? ui::col::danger : ui::col::text, &avatar))
             {
                 pl::selected_index = i;
                 pl::selected_address = entity.instance.address;
@@ -1780,18 +1486,20 @@ namespace
             const bool is_targeted = !pl::target_name.empty() && sel.name == pl::target_name;
 
             char buf[96];
-            ui::Value("Display name", sel.display_name.c_str());
             snprintf(buf, sizeof(buf), "@%s", sel.name.c_str());
-            ui::Value("Username", buf);
-            snprintf(buf, sizeof(buf), "%.0f / %.0f", sel.health, sel.max_health);
-            ui::Value("Health", buf);
+            const std::string& shown_name = sel.display_name.empty() ? sel.name : sel.display_name;
+            char hp[32];
+            snprintf(hp, sizeof(hp), "%.0f / %.0f", sel.health, sel.max_health);
+            ui::ProfileHeader(PlayerAvatar(sel, is_targeted, wl, true), shown_name.c_str(), buf,
+                sel.max_health > 0.0f ? sel.health / sel.max_health : -1.0f, hp);
+            ui::Spacing(8.0f);
+            ui::Value("Status", is_targeted ? "Targeted" : (wl ? "Whitelisted" : "-"),
+                is_targeted ? ui::col::danger : (wl ? IM_COL32(120, 232, 150, 255) : ui::col::text));
             if (has_tp)
             {
                 snprintf(buf, sizeof(buf), "%.0f, %.0f, %.0f", tp.x, tp.y, tp.z);
                 ui::Value("Position", buf);
             }
-            ui::Value("Status", is_targeted ? "Targeted" : (wl ? "Whitelisted" : "-"),
-                is_targeted ? ui::col::danger : ui::col::text);
             ui::Spacing(10.0f);
 
             if (ui::Button(is_targeted ? "Untarget" : "Target", ui::Btn::Primary))
@@ -1965,11 +1673,12 @@ const std::vector<Menu::PreviewPage>& Menu::PreviewPages()
         { "world",    PageWorldTab,    0 }, { "settings",   PageSettingsTab, 0 }, { "configs", PageConfigs, 0 },
         { "tool_playerlist", kPreviewPlayerList, 0 }, { "tool_explorer", kPreviewExplorer, 0 },
         // Interaction shots on the 1280x760 preview canvas (menu centred, top edge at y=94).
-        { "x_slider_hover",   PageAimbot, 0, 700.0f, 379.0f, -1 },
-        { "x_slider_stretch", PageAimbot, 0, 900.0f, 379.0f, 0, 1060.0f },
-        { "x_combo_open",     PageAimbot, 0, 926.0f, 420.0f, 0 },
+        { "x_slider_hover",   PageAimbot, 0, 700.0f, 423.0f, -1 },
+        { "x_slider_stretch", PageAimbot, 0, 900.0f, 423.0f, 0, 1060.0f },
+        { "x_combo_open",     PageAimbot, 0, 926.0f, 464.0f, 0 },
         { "x_key_mode_menu",  PageAimbot, 0, 925.0f, 222.0f, 1 },
         { "x_spotlight_row",  PageAimbot, 0, 600.0f, 266.0f, -1 },
+        { "x_config_selected", PageConfigs, 0, 520.0f, 275.0f, 0, -1.0f, 30, 70 },   // clicks the first config once the list has loaded
         // From Aimbot straight to World, caught mid-glide.
         { "x_tab_glide",      PageWorldTab, 0, -1.0f, -1.0f, -1, -1.0f, 10, 9 },
         { "x_click_spark",    PageVisualsTab, 0, 640.0f, 266.0f, 0, -1.0f, 38 },
@@ -1981,8 +1690,31 @@ const std::vector<Menu::PreviewPage>& Menu::PreviewPages()
 
 void Menu::PreviewSelect(const PreviewPage& page)
 {
+    // Every shot starts with the menu centred: a drag in one shot must not move the next one's
+    // click targets.
+    ImGui::SetWindowPos("##natware_menu", CenteredPos(ImVec2(kWindowW, WindowHeight())), ImGuiCond_Always);
     s_explorer_open = page.tab == kPreviewExplorer;
     s_playerlist_open = page.tab == kPreviewPlayerList;
+    if (s_playerlist_open)
+    {
+        // The screenshot shows the profile header: someone selected and whitelisted.
+        settings::rage::playerlist::selected_name = "sample_Bravo";
+        settings::rage::playerlist::whitelist.insert("sample_Bravo");
+    }
+    if (!s_preview)
+    {
+        // Real accounts for the sample players, requested on the first page so the pictures have
+        // downloaded by the time the player list is shot.
+        s_preview = true;
+        s_preview_ids = { { "sample_Alpha", 1 }, { "sample_Bravo", 156 }, { "sample_Charlie", 261 }, { "sample_Delta", 2 },
+            { "sample_Echo", 3 }, { "sample_Foxtrot", 7 } };
+        if (g_avatar_manager)
+        {
+            for (const auto& entry : s_preview_ids)
+                g_avatar_manager->requestAvatar(entry.second);
+            g_avatar_manager->requestBody(156);
+        }
+    }
     if (page.tab >= 0 && page.tab < PageCount)
         s_page = page.tab;
 }
@@ -2016,7 +1748,7 @@ void Menu::DrawWatermark()
         return;
 
     // Segments: the name, then icon + text pieces, split by hairlines.
-    struct Segment { bool brand; ui::Icon icon; std::string text; };
+    struct Segment { bool brand; ui::Icon icon; std::string text; bool avatar = false; };
     std::vector<Segment> segments;
     auto append = [&](ui::Icon icon, const std::string& s) {
         if (!s.empty())
@@ -2042,6 +1774,9 @@ void Menu::DrawWatermark()
             }
         }
         append(ui::Icon::User, player_str);
+        // Your headshot takes the icon's place once it has downloaded.
+        if (!player_str.empty() && ui::profile::Avatar())
+            segments.back().avatar = true;
     }
 
     if (settings::watermark::show_fps)
@@ -2097,9 +1832,10 @@ void Menu::DrawWatermark()
     constexpr float kSplit    = 12.0f;   // space either side of a hairline
     auto font_of = [](const Segment& s) { return s.brand ? ui::Brand() : ui::Regular(); };
     auto size_of = [](const Segment& s) { return s.brand ? ui::kBrandSize : kFontSize; };
+    auto icon_w = [&](const Segment& s) { return s.avatar ? 20.0f : kIconW; };
     auto width_of = [&](const Segment& s) {
         const float text = font_of(s)->CalcTextSizeA(size_of(s), FLT_MAX, 0.0f, s.text.c_str()).x;
-        return s.brand ? text : kIconW + kIconGap + text;
+        return s.brand ? text : icon_w(s) + kIconGap + text;
     };
     float wm_width = kPadX * 2.0f + (segments.size() - 1) * (kSplit * 2.0f + 1.0f);
     for (const Segment& s : segments)
@@ -2158,11 +1894,18 @@ void Menu::DrawWatermark()
             }
             if (!s.brand)
             {
-                ui::DrawIcon(dl, s.icon, ImVec2(x + kIconW * 0.5f, cy), icon_col, 0.85f);
-                x += kIconW + kIconGap;
+                if (s.avatar)
+                {
+                    ui::AvatarSpec headshot;
+                    headshot.tex = ui::profile::Avatar();
+                    ui::DrawAvatar(dl, ImVec2(x + 10.0f, cy), 10.0f, headshot);
+                }
+                else
+                    ui::DrawIcon(dl, s.icon, ImVec2(x + kIconW * 0.5f, cy), icon_col, 0.85f);
+                x += icon_w(s) + kIconGap;
             }
             dl->AddText(font_of(s), size_of(s), ImVec2(floorf(x + 0.5f), s.brand ? brand_y : ty), s.brand ? text_col : quiet, s.text.c_str());
-            x += width_of(s) - (s.brand ? 0.0f : kIconW + kIconGap);
+            x += width_of(s) - (s.brand ? 0.0f : icon_w(s) + kIconGap);
         }
     }
     ImGui::End();
@@ -2232,7 +1975,8 @@ void Menu::Shutdown()
 }
 
 // The shells' close button (same as the tool windows'): 28px, a faint fill on hover.
-static bool ShellCloseButton(ImDrawList* dl, const char* id, ImVec2 min)
+// `shadow`: a dark copy a pixel below, for the launcher, where the X sits on a picture.
+static bool ShellCloseButton(ImDrawList* dl, const char* id, ImVec2 min, bool shadow = false)
 {
     const ImRect r(min, ImVec2(min.x + 28.0f, min.y + 28.0f));
     ImGui::SetCursorScreenPos(r.Min);
@@ -2243,13 +1987,14 @@ static bool ShellCloseButton(ImDrawList* dl, const char* id, ImVec2 min)
         dl->AddRectFilled(r.Min, r.Max, IM_COL32(255, 255, 255, 16), 7.0f);
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     }
-    ui::DrawIcon(dl, ui::Icon::Close, r.GetCenter(), hovered ? ui::col::white : ui::col::text_dim, 0.85f);
+    if (shadow)
+        ui::DrawIcon(dl, ui::Icon::Close, ImVec2(r.GetCenter().x + 1.0f, r.GetCenter().y + 1.0f), IM_COL32(0, 0, 0, 150), 1.0f);
+    ui::DrawIcon(dl, ui::Icon::Close, r.GetCenter(), hovered ? ui::col::white : ui::col::text, 1.0f);
     return pressed;
 }
 
 // Where the launcher and the waiting card sit relative to screen centre, so they can be dragged
 // out of the way (by any part that isn't a button) and stay there from one to the other.
-static ImVec2 s_card_drag(0.0f, 0.0f);
 static bool s_card_dragging = false;
 
 // The overlay covers the whole screen, so while a card shows it only takes the mouse over the
@@ -2279,25 +2024,28 @@ static void DragCard(ImVec2 size)
     if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
         s_card_dragging = false;
     if (s_card_dragging)
-        s_card_drag = ImVec2(s_card_drag.x + io.MouseDelta.x, s_card_drag.y + io.MouseDelta.y);
+    {
+        settings::menu::card_x += io.MouseDelta.x;
+        settings::menu::card_y += io.MouseDelta.y;
+    }
     const float rx = (std::max)(0.0f, (io.DisplaySize.x - size.x) * 0.5f);
     const float ry = (std::max)(0.0f, (io.DisplaySize.y - size.y) * 0.5f);
-    s_card_drag.x = (std::min)((std::max)(s_card_drag.x, -rx), rx);
-    s_card_drag.y = (std::min)((std::max)(s_card_drag.y, -ry), ry);
+    settings::menu::card_x = (std::min)((std::max)(settings::menu::card_x, -rx), rx);
+    settings::menu::card_y = (std::min)((std::max)(settings::menu::card_y, -ry), ry);
 }
 
 // While natware waits on Roblox after External was picked: there's no console any more, so this
 // card says what it's waiting for and can close natware.
 void Menu::DrawWaiting(const char* status)
 {
-    constexpr float kW = 400.0f, kH = 112.0f, kPadX = 24.0f;
+    constexpr float kW = 400.0f, kH = 100.0f, kPadX = 24.0f;
     static double opened = ImGui::GetTime();
     const double now = ImGui::GetTime();
     const float enter = ui::SpringIn((float)(now - opened), 0.30f);
 
     const ImVec2 size(kW, kH);
     ImGui::SetNextWindowSize(size);
-    ImGui::SetNextWindowPos(CenteredPos(size, ImVec2(s_card_drag.x, s_card_drag.y + (1.0f - enter) * 18.0f)));
+    ImGui::SetNextWindowPos(CenteredPos(size, ImVec2(settings::menu::card_x, settings::menu::card_y + (1.0f - enter) * 18.0f)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin("##waiting", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove);
@@ -2312,11 +2060,11 @@ void Menu::DrawWaiting(const char* status)
     else
         dl->AddRectFilled(bb.Min, bb.Max, ui::col::shell, kShellR);
     dl->AddRect(bb.Min, bb.Max, IM_COL32(255, 255, 255, 20), kShellR);
-    dl->AddText(ui::Brand(), ui::kBrandSize, ImVec2(bb.Min.x + kPadX, bb.Min.y + 22.0f), ui::col::white, "natware");
+    ui::PixelText(dl, ImVec2(bb.Min.x + kPadX, bb.Min.y + 22.0f), ui::col::white, "natware");
 
     // A dot that breathes, then the status with a slow ellipsis.
     const float pulse = 0.5f + 0.5f * sinf((float)now * 3.0f);
-    const ImVec2 dot(bb.Min.x + kPadX + 4.0f, bb.Min.y + 78.0f);
+    const ImVec2 dot(bb.Min.x + kPadX + 4.0f, bb.Min.y + 70.0f);
     dl->AddCircleFilled(dot, 4.0f, IM_COL32(255, 255, 255, (int)(90 + 140 * pulse)), 16);
     char text[96];
     const int dots = (int)(now * 2.0) % 4;
@@ -2344,7 +2092,7 @@ static bool PillButton(ImDrawList* dl, const char* id, const char* label, ImVec2
         ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
     const int a = enabled ? 255 : 110;
     if (primary)
-        dl->AddRectFilled(r.Min, r.Max, hovered ? IM_COL32(255, 255, 255, a) : IM_COL32(236, 236, 240, a), kH * 0.5f);
+        dl->AddRectFilled(r.Min, r.Max, hovered ? IM_COL32(240, 176, 104, a) : IM_COL32(227, 160, 86, a), kH * 0.5f);
     else
     {
         dl->AddRectFilled(r.Min, r.Max, IM_COL32(255, 255, 255, hovered ? 26 : 14), kH * 0.5f);
@@ -2353,29 +2101,144 @@ static bool PillButton(ImDrawList* dl, const char* id, const char* label, ImVec2
     ImFont* font = ui::Regular();
     const ImVec2 ts = font->CalcTextSizeA(14.0f, FLT_MAX, 0.0f, label);
     dl->AddText(font, 14.0f, ImVec2(floorf(r.GetCenter().x - ts.x * 0.5f), floorf(r.GetCenter().y - ts.y * 0.5f)),
-        primary ? IM_COL32(12, 12, 14, a) : (enabled ? ui::col::text : ui::col::text_faint), label);
+        primary ? IM_COL32(26, 16, 8, a) : (enabled ? ui::col::text : ui::col::text_faint), label);
     return pressed;
 }
 
-// The launcher's update rows: one per program natware keeps up to date (natware, the editor and
-// its backend), with what's installed and what's out. A row with an update gets a tick box;
-// ticked rows go in with the Update button below. Rows divide by hairlines, like a card's.
+// ---- the launcher's update dialog -------------------------------------------------------
+// A release that's out is asked about in a dialog over the launcher, not in rows at its foot:
+// what's in it (one row per program, ticked to go in), what restarts, and Not now / Update now.
+// It stays up through the download with a progress bar, and says so when the install fails.
+// "Not now" puts it away for this run; the footer then keeps a way back to it.
 static constexpr float kUpdateRowH = 30.0f;
+static bool   s_update_dismissed = false;   // "Not now" (or Close after a failure) this run
+static bool   s_update_asked = false;       // Update now was clicked here, so a failure is ours to show
+static ImRect s_update_dialog{};            // where it was last drawn (the preview tests click into it)
+static bool   s_update_preview = false;     // a made-up update, for the screenshot tests
 
-static void UpdateRows(ImDrawList* dl, const ImRect& bb, float pad_x, float y, bool busy)
+void Menu::PreviewUpdateDialog(bool on)
 {
-    const std::vector<updater::component_t> comps = updater::components();
-    const bool checking = updater::status().state == updater::state_t::checking;
-    for (size_t i = 0; i < comps.size(); ++i)
-    {
-        const updater::component_t& c = comps[i];
-        const ImVec2 a(bb.Min.x + pad_x, y), b(bb.Max.x - pad_x, y + kUpdateRowH);
-        dl->AddLine(ImVec2(a.x, a.y), ImVec2(b.x, a.y), ui::col::line);
+    s_update_preview = on;
+    s_update_dismissed = false;
+}
 
-        const bool tickable = c.available && c.state != updater::state_t::staged && !busy;
-        ImGui::SetCursorScreenPos(a);
+// What the dialog shows: the updater's own state, or the made-up update in a preview.
+static updater::status_t DialogStatus()
+{
+    if (!s_update_preview)
+        return updater::status();
+    updater::status_t st;
+    st.state = updater::state_t::available;
+    st.latest = "natware 1.1.5, editor 1.0.2";
+    st.count = 2;
+    st.optional = 1;
+    st.restarts = true;
+    return st;
+}
+
+static std::vector<updater::component_t> DialogComponents()
+{
+    if (!s_update_preview)
+        return updater::components();
+    updater::component_t a, b;
+    a.name = "natware"; a.present = true; a.installed = "1.1.4"; a.latest = "1.1.5"; a.available = true; a.selected = true;  a.state = updater::state_t::available;
+    b.name = "editor";  b.present = true; b.installed = "";      b.latest = "1.0.2"; b.available = true; b.selected = false; b.state = updater::state_t::available;
+    return { a, b };
+}
+
+static bool UpdateDialogOpen()
+{
+    switch (DialogStatus().state)
+    {
+    case updater::state_t::available:   return !s_update_dismissed;
+    case updater::state_t::downloading:
+    case updater::state_t::installing:  return true;
+    case updater::state_t::failed:      return s_update_asked;
+    default:                            return false;
+    }
+}
+
+static ImVec2 UpdateDialogSize()
+{
+    int rows = 0;
+    for (const updater::component_t& c : DialogComponents())
+        if (c.available)
+            rows++;
+    return ImVec2(400.0f, 76.0f + rows * kUpdateRowH + 14.0f + 28.0f + 22.0f);
+}
+
+ImVec2 Menu::UpdateDialogPoint(const char* which, int row)
+{
+    const ImRect& d = s_update_dialog;
+    const float by = d.Max.y - 22.0f - 14.0f;
+    if (strcmp(which, "row") == 0)
+        return ImVec2(d.Min.x + 22.0f + 8.0f, d.Min.y + 76.0f + row * kUpdateRowH + kUpdateRowH * 0.5f);
+    if (strcmp(which, "later") == 0)
+        return ImVec2(d.Max.x - 22.0f - 120.0f - 8.0f - 48.0f, by);
+    return ImVec2(d.Max.x - 22.0f - 60.0f, by);   // "update"
+}
+
+static void DrawUpdateDialog(ImDrawList* dl, const ImRect& shell, double now)
+{
+    static double shown_at = -1.0;
+    static bool was_open = false;
+    const bool open = UpdateDialogOpen();
+    if (open && !was_open)
+        shown_at = now;
+    was_open = open;
+    if (!open)
+    {
+        s_update_dialog = ImRect();
+        return;
+    }
+
+    const updater::status_t st = DialogStatus();
+    const bool busy = st.state == updater::state_t::downloading || st.state == updater::state_t::installing;
+    const bool failed = st.state == updater::state_t::failed;
+    const float enter = ui::SpringIn((float)(now - shown_at), 0.22f);
+    const int vtx0 = dl->VtxBuffer.Size;   // everything from here fades in together
+
+    // The launcher dims under it.
+    dl->AddRectFilled(shell.Min, shell.Max, IM_COL32(0, 0, 0, 150), kShellR);
+
+    const ImVec2 size = UpdateDialogSize();
+    const ImVec2 p(floorf(shell.GetCenter().x - size.x * 0.5f), floorf(shell.GetCenter().y - size.y * 0.5f + (1.0f - enter) * 10.0f));
+    const ImRect bb(p, ImVec2(p.x + size.x, p.y + size.y));
+    s_update_dialog = bb;
+    constexpr float kPad = 22.0f;
+    const float x0 = bb.Min.x + kPad, x1 = bb.Max.x - kPad;
+
+    // The card is an item of its own: a click on it never drags the launcher or reaches the cards.
+    ImGui::SetCursorScreenPos(bb.Min);
+    ImGui::InvisibleButton("##update_dialog", bb.GetSize());
+
+    dl->AddRectFilled(ImVec2(bb.Min.x, bb.Min.y + 2.0f), ImVec2(bb.Max.x, bb.Max.y + 2.0f), IM_COL32(0, 0, 0, 90), 14.0f);
+    dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(14, 14, 18, 252), 14.0f);
+    dl->AddRect(bb.Min, bb.Max, IM_COL32(255, 255, 255, 34), 14.0f);
+    dl->AddLine(ImVec2(bb.Min.x + 14.0f, bb.Min.y + 1.0f), ImVec2(bb.Max.x - 14.0f, bb.Min.y + 1.0f), IM_COL32(255, 255, 255, 26));
+
+    const char* title = failed ? "The update didn't go in" : st.state == updater::state_t::installing ? "Installing"
+        : busy ? "Downloading" : "Update available";
+    ui::PixelText(dl, ImVec2(x0, bb.Min.y + 20.0f), ui::col::white, title);
+    const char* sub = failed ? st.message.c_str()
+        : st.restarts ? "natware restarts to finish the update." : "Nothing restarts: it's used the next time it opens.";
+    dl->AddText(ui::Regular(), 14.0f, ImVec2(x0, bb.Min.y + 46.0f), IM_COL32(240, 240, 243, 170), sub);
+
+    // One row per update: a tick, the program, what's out and what you have.
+    char line[160];
+    bool any_ticked = false;
+    float y = bb.Min.y + 76.0f;
+    for (const updater::component_t& c : DialogComponents())
+    {
+        if (!c.available)
+            continue;
+        any_ticked = any_ticked || c.selected;
+        dl->AddLine(ImVec2(x0, floorf(y) + 0.5f), ImVec2(x1, floorf(y) + 0.5f), ui::col::line);
+
+        const bool tickable = !busy && !failed && c.state != updater::state_t::staged;
+        ImGui::SetCursorScreenPos(ImVec2(x0, y));
         ImGui::PushID(c.name.c_str());
-        const bool pressed = ImGui::InvisibleButton("##update_row", ImVec2(b.x - a.x, kUpdateRowH)) && tickable;
+        const bool pressed = ImGui::InvisibleButton("##update_row", ImVec2(x1 - x0, kUpdateRowH)) && tickable;
         const bool hovered = ImGui::IsItemHovered() && tickable;
         const ImGuiID id = ImGui::GetItemID();
         ImGui::PopID();
@@ -2393,67 +2256,73 @@ static void UpdateRows(ImDrawList* dl, const ImRect& bb, float pad_x, float y, b
         storage->SetFloat(vid, tv);
 
         const float cy = floorf(y + kUpdateRowH * 0.5f);
-        float text_x = a.x;
-        if (c.available)
+        const ImVec2 k0(x0, cy - 8.0f), k1(x0 + 16.0f, cy + 8.0f);
+        const int rim = tickable ? (hovered ? 110 : 70) : 36;
+        dl->AddRect(k0, k1, IM_COL32(255, 255, 255, (int)(rim * (1.0f - t))), 5.0f);
+        if (t > 0.01f)
         {
-            const ImVec2 k0(a.x, cy - 8.0f), k1(a.x + 16.0f, cy + 8.0f);
-            const int rim = tickable ? (hovered ? 90 : 60) : 30;
-            dl->AddRect(k0, k1, IM_COL32(255, 255, 255, (int)(rim * (1.0f - t))), 5.0f);
-            if (t > 0.01f)
-            {
-                dl->AddRectFilled(k0, k1, IM_COL32(248, 248, 250, (int)(255 * t * (tickable ? 1.0f : 0.5f))), 5.0f);
-                ui::DrawIcon(dl, ui::Icon::Check, ImVec2(a.x + 8.0f, (float)cy), IM_COL32(12, 12, 14, (int)(255 * t)), 0.72f);
-            }
-            text_x = a.x + 28.0f;
+            dl->AddRectFilled(k0, k1, IM_COL32(227, 160, 86, (int)(255 * t * (tickable ? 1.0f : 0.55f))), 5.0f);
+            ui::DrawIcon(dl, ui::Icon::Check, ImVec2(x0 + 8.0f, cy), IM_COL32(26, 16, 8, (int)(255 * t)), 0.72f);
         }
-        dl->AddText(ui::Regular(), 15.0f, ImVec2(text_x, cy - 8.0f), hovered ? ui::col::white : ui::col::text, c.name.c_str());
+        dl->AddText(ui::SemiBold(), 15.0f, ImVec2(x0 + 28.0f, cy - 8.0f), hovered ? ui::col::white : ui::col::text, c.name.c_str());
 
-        // What it is and what's out, right-aligned.
         const std::string have = c.installed.empty() ? (c.present ? "a local build" : "not installed") : c.installed;
-        char detail[160];
-        ImU32 color = ui::col::text_dim;
         switch (c.state)
         {
-        case updater::state_t::available:
-            if (c.present)
-                snprintf(detail, sizeof(detail), "%s is out  \xC2\xB7  you have %s", c.latest.c_str(), have.c_str());
-            else
-                snprintf(detail, sizeof(detail), "%s is out  \xC2\xB7  not installed", c.latest.c_str());
-            color = c.selected ? ui::col::text : ui::col::text_dim;
-            break;
-        case updater::state_t::downloading:
-            snprintf(detail, sizeof(detail), "Downloading %s  \xC2\xB7  %d%%", c.latest.c_str(), (int)(c.progress * 100.0f + 0.5f));
-            color = ui::col::text;
-            break;
-        case updater::state_t::staged:
-            snprintf(detail, sizeof(detail), "%s goes in when natware closes", c.latest.c_str());
-            break;
-        case updater::state_t::done:
-            snprintf(detail, sizeof(detail), "%s installed", c.installed.c_str());
-            color = ui::col::text;
-            break;
-        case updater::state_t::failed:
-            snprintf(detail, sizeof(detail), "%s  \xC2\xB7  %s", have.c_str(), c.message.c_str());
-            color = ui::col::text_faint;
-            break;
-        case updater::state_t::off:
-            snprintf(detail, sizeof(detail), "%s", have.c_str());
-            if (checking)
-                snprintf(detail, sizeof(detail), "%s  \xC2\xB7  checking", have.c_str());
-            break;
-        default:
-            snprintf(detail, sizeof(detail), "%s  \xC2\xB7  %s", have.c_str(), c.message.empty() ? "up to date" : c.message.c_str());
-            break;
+        case updater::state_t::downloading: snprintf(line, sizeof(line), "%s  \xC2\xB7  %d%%", c.latest.c_str(), (int)(c.progress * 100.0f + 0.5f)); break;
+        case updater::state_t::staged:      snprintf(line, sizeof(line), "goes in when natware closes"); break;
+        case updater::state_t::done:        snprintf(line, sizeof(line), "%s installed", c.installed.c_str()); break;
+        case updater::state_t::failed:      snprintf(line, sizeof(line), "%s", c.message.c_str()); break;
+        default:                            snprintf(line, sizeof(line), "%s  \xC2\xB7  you have %s", c.latest.c_str(), have.c_str()); break;
         }
-        ImFont* font = ui::Regular();
-        const ImVec2 ts = font->CalcTextSizeA(14.0f, FLT_MAX, 0.0f, detail);
-        dl->AddText(font, 14.0f, ImVec2(floorf(b.x - ts.x), cy - 7.0f), color, detail);
+        const ImVec2 ts = ui::Regular()->CalcTextSizeA(14.0f, FLT_MAX, 0.0f, line);
+        dl->AddText(ui::Regular(), 14.0f, ImVec2(floorf(x1 - ts.x), cy - 7.0f), c.selected ? ui::col::text : ui::col::text_dim, line);
         y += kUpdateRowH;
     }
-    dl->AddLine(ImVec2(bb.Min.x + pad_x, y), ImVec2(bb.Max.x - pad_x, y), ui::col::line);
+    dl->AddLine(ImVec2(x0, floorf(y) + 0.5f), ImVec2(x1, floorf(y) + 0.5f), ui::col::line);
+
+    const float by = bb.Max.y - 22.0f - 28.0f;
+    if (busy)
+    {
+        // Progress across the whole download, where the buttons were.
+        const ImVec2 a(x0, by + 12.0f), b(x1, by + 16.0f);
+        dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 22), 2.0f);
+        const float amount = st.state == updater::state_t::installing ? 1.0f : st.progress;
+        dl->AddRectFilled(a, ImVec2(a.x + (b.x - a.x) * amount, b.y), ui::col::accent, 2.0f);
+    }
+    else if (failed)
+    {
+        if (PillButton(dl, "##update_close", "Close", ImVec2(x1 - 96.0f, by), 96.0f, true) || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+        {
+            s_update_dismissed = true;
+            s_update_asked = false;
+        }
+    }
+    else
+    {
+        const float now_w = 120.0f, later_w = 96.0f;
+        if (PillButton(dl, "##update_later", "Not now", ImVec2(x1 - now_w - 8.0f - later_w, by), later_w, false)
+            || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+            s_update_dismissed = true;
+        if (PillButton(dl, "##update_now", "Update now", ImVec2(x1 - now_w, by), now_w, true, any_ticked))
+        {
+            s_update_asked = true;
+            if (st.restarts)
+                config::save_last_settings();   // natware restarts: your settings come back as they are
+            updater::install_async(true);
+        }
+    }
+
+    if (enter < 0.999f)
+        for (int i = vtx0; i < dl->VtxBuffer.Size; i++)
+        {
+            ImU32& c = dl->VtxBuffer[i].col;
+            c = (c & ~IM_COL32_A_MASK) | ((ImU32)(((c >> IM_COL32_A_SHIFT) & 0xFF) * enter) << IM_COL32_A_SHIFT);
+        }
 }
 
-// The launcher's last line: natware's version and where the updates stand.
+// The launcher's last line: natware's version and where the updates stand. Once the dialog
+// was put off, Update here brings it back.
 static void UpdateFooter(ImDrawList* dl, const ImRect& bb, float pad_x, float y)
 {
     const updater::status_t st = updater::status();
@@ -2464,13 +2333,13 @@ static void UpdateFooter(ImDrawList* dl, const ImRect& bb, float pad_x, float y)
     case updater::state_t::checking:    snprintf(line, sizeof(line), "natware %s  \xC2\xB7  checking for updates", updater::version()); break;
     case updater::state_t::current:
         if (st.optional)
-            snprintf(line, sizeof(line), "natware %s  \xC2\xB7  tick a local build to replace it", updater::version());
+            snprintf(line, sizeof(line), "natware %s  \xC2\xB7  a local build can be replaced", updater::version());
         else
             snprintf(line, sizeof(line), "natware %s  \xC2\xB7  everything is up to date", updater::version());
         break;
     case updater::state_t::available:
-        if (st.count == 1) snprintf(line, sizeof(line), "1 update is out");
-        else               snprintf(line, sizeof(line), "%d updates are out", st.count);
+        if (st.count == 1) snprintf(line, sizeof(line), "natware %s  \xC2\xB7  %s is out", updater::version(), st.latest.c_str());
+        else               snprintf(line, sizeof(line), "natware %s  \xC2\xB7  %d updates are out", updater::version(), st.count);
         break;
     case updater::state_t::downloading:
         if (st.count == 1) snprintf(line, sizeof(line), "Downloading %s  \xC2\xB7  %d%%", st.latest.c_str(), pct);
@@ -2492,17 +2361,91 @@ static void UpdateFooter(ImDrawList* dl, const ImRect& bb, float pad_x, float y)
         : st.state == updater::state_t::failed ? ui::col::text_faint : ui::col::text_dim;
     dl->AddText(ui::Regular(), 14.0f, ImVec2(bb.Min.x + pad_x, y + 6.0f), color, line);
 
-    if (st.state == updater::state_t::available)
+    if (st.state == updater::state_t::available && s_update_dismissed)
     {
-        // natware restarts into its new version when it's among them; the others just go in.
-        if (PillButton(dl, "##update_now", "Update", ImVec2(bb.Max.x - pad_x - 86.0f, y), 86.0f, true))
-            updater::install_async(true);
+        if (PillButton(dl, "##update_open", "Update", ImVec2(bb.Max.x - pad_x - 86.0f, y), 86.0f, true))
+            s_update_dismissed = false;
     }
-    else if (st.state == updater::state_t::downloading)
+}
+
+
+// ---- the launcher's backdrop: an animated GIF built into the exe (resource 101) ----------
+namespace
+{
+    struct Backdrop
     {
-        const ImVec2 a(bb.Max.x - pad_x - 120.0f, y + 12.0f), b(bb.Max.x - pad_x, y + 16.0f);
-        dl->AddRectFilled(a, b, IM_COL32(255, 255, 255, 22), 2.0f);
-        dl->AddRectFilled(a, ImVec2(a.x + (b.x - a.x) * st.progress, b.y), ui::col::white, 2.0f);
+        std::vector<ID3D11ShaderResourceView*> frames;
+        std::vector<float> ends;   // seconds into the loop at which each frame stops
+        int w = 0, h = 0;
+        bool tried = false;
+    } g_backdrop;
+
+    void LoadBackdrop()
+    {
+        if (g_backdrop.tried)
+            return;
+        g_backdrop.tried = true;
+        ID3D11Device* const device = render && render->detail ? render->detail->device : nullptr;
+        const HRSRC res = FindResourceW(nullptr, MAKEINTRESOURCEW(101), MAKEINTRESOURCEW(10) /* RT_RCDATA */);
+        if (!device || !res)
+            return;
+        const HGLOBAL mem = LoadResource(nullptr, res);
+        const void* const data = mem ? LockResource(mem) : nullptr;
+        if (!data)
+            return;
+
+        int* delays = nullptr;
+        int w = 0, h = 0, count = 0, comp = 0;
+        unsigned char* pixels = stbi_load_gif_from_memory(static_cast<const unsigned char*>(data), static_cast<int>(SizeofResource(nullptr, res)),
+            &delays, &w, &h, &count, &comp, 4);
+        if (!pixels)
+            return;
+        float t = 0.0f;
+        for (int i = 0; i < count; ++i)
+        {
+            D3D11_TEXTURE2D_DESC td{};
+            td.Width = static_cast<UINT>(w);
+            td.Height = static_cast<UINT>(h);
+            td.MipLevels = 1;
+            td.ArraySize = 1;
+            td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            td.SampleDesc.Count = 1;
+            td.Usage = D3D11_USAGE_DEFAULT;
+            td.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+            D3D11_SUBRESOURCE_DATA sd{};
+            sd.pSysMem = pixels + static_cast<size_t>(i) * w * h * 4;
+            sd.SysMemPitch = static_cast<UINT>(w * 4);
+            ID3D11Texture2D* tex = nullptr;
+            ID3D11ShaderResourceView* srv = nullptr;
+            if (SUCCEEDED(device->CreateTexture2D(&td, &sd, &tex)))
+            {
+                device->CreateShaderResourceView(tex, nullptr, &srv);
+                tex->Release();
+            }
+            if (!srv)
+                continue;
+            t += (delays && delays[i] > 0 ? delays[i] : 100) / 1000.0f;
+            g_backdrop.frames.push_back(srv);
+            g_backdrop.ends.push_back(t);
+        }
+        stbi_image_free(pixels);
+        if (delays)
+            stbi_image_free(delays);
+        g_backdrop.w = w;
+        g_backdrop.h = h;
+    }
+
+    // The frame for this moment of the loop, or 0 when the GIF couldn't be loaded.
+    ImTextureID BackdropFrame(double now)
+    {
+        LoadBackdrop();
+        if (g_backdrop.frames.empty())
+            return 0;
+        const float t = static_cast<float>(fmod(now, static_cast<double>(g_backdrop.ends.back())));
+        for (size_t i = 0; i < g_backdrop.frames.size(); ++i)
+            if (t < g_backdrop.ends[i])
+                return reinterpret_cast<ImTextureID>(g_backdrop.frames[i]);
+        return reinterpret_cast<ImTextureID>(g_backdrop.frames.back());
     }
 }
 
@@ -2512,10 +2455,9 @@ void Menu::DrawModePicker()
     // and two Glass Surface cards with the cards' spotlight. It fades in rising into place, and a
     // choice fades it out (group opacity, like the menu) before the mode switches.
     constexpr float kW = 560.0f, kPadX = 24.0f, kCardY = 104.0f, kCardH = 140.0f, kGap = 12.0f;
-    // Below the cards: a row per component when updates are on, then the status line.
-    const bool update_rows = updater::status().state != updater::state_t::off;
-    const float rows_h = update_rows ? updater::components().size() * kUpdateRowH + 12.0f : 0.0f;
-    const float kH = 304.0f + rows_h;
+    constexpr float kH = 304.0f;
+    // With the update dialog up, the cards, the close button and dragging wait.
+    const bool dialog = UpdateDialogOpen();
     static double opened = ImGui::GetTime();
     static int chosen = -1;
     static double chosen_at = 0.0;
@@ -2533,7 +2475,7 @@ void Menu::DrawModePicker()
 
     const ImVec2 size(kW, kH);
     ImGui::SetNextWindowSize(size);
-    ImGui::SetNextWindowPos(CenteredPos(size, ImVec2(s_card_drag.x, s_card_drag.y + (1.0f - enter) * 18.0f - leave * 8.0f)));
+    ImGui::SetNextWindowPos(CenteredPos(size, ImVec2(settings::menu::card_x, settings::menu::card_y + (1.0f - enter) * 18.0f - leave * 8.0f)));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
     ImGui::Begin("##mode_picker", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoMove);
@@ -2544,16 +2486,53 @@ void Menu::DrawModePicker()
     if (alpha < 0.999f)
         ui::veil::FadeList(dl, alpha);
 
-    if (const ImTextureID veil = ui::veil::Render(bb.Min, bb.GetSize()))
+    // The animated backdrop, scaled to cover the window, under a dark scrim so the text reads.
+    if (const ImTextureID frame = BackdropFrame(now))
+    {
+        const float win_aspect = bb.GetWidth() / bb.GetHeight(), img_aspect = static_cast<float>(g_backdrop.w) / static_cast<float>(g_backdrop.h);
+        ImVec2 uv0(0.0f, 0.0f), uv1(1.0f, 1.0f);
+        if (win_aspect < img_aspect)
+        {
+            const float visible = win_aspect / img_aspect;
+            uv0.x = (1.0f - visible) * 0.5f;
+            uv1.x = uv0.x + visible;
+        }
+        else
+        {
+            const float visible = img_aspect / win_aspect;
+            uv0.y = (1.0f - visible) * 0.5f;
+            uv1.y = uv0.y + visible;
+        }
+        dl->AddImageRounded(frame, bb.Min, bb.Max, uv0, uv1, IM_COL32_WHITE, kShellR);
+        // A scrim that's darkest at the top, where the wordmark and the title sit on the sky and
+        // the waterfall, and lets the picture through lower down.
+        dl->AddRectFilled(bb.Min, bb.Max, IM_COL32(8, 6, 12, 70), kShellR);
+        dl->AddRectFilled(bb.Min, ImVec2(bb.Max.x, bb.Min.y + kShellR), IM_COL32(8, 6, 12, 120), kShellR, ImDrawFlags_RoundCornersTop);
+        dl->AddRectFilledMultiColor(ImVec2(bb.Min.x, bb.Min.y + kShellR), ImVec2(bb.Max.x, bb.Min.y + bb.GetHeight() * 0.42f),
+            IM_COL32(8, 6, 12, 120), IM_COL32(8, 6, 12, 120), IM_COL32(8, 6, 12, 0), IM_COL32(8, 6, 12, 0));
+        // The footer sits on a dark status bar so its text reads over the rocks.
+        const float bar_y = bb.Max.y - 44.0f;
+        dl->AddRectFilled(ImVec2(bb.Min.x, bar_y), bb.Max, IM_COL32(8, 6, 12, 150), kShellR, ImDrawFlags_RoundCornersBottom);
+        dl->AddLine(ImVec2(bb.Min.x + 1.0f, bar_y), ImVec2(bb.Max.x - 1.0f, bar_y), IM_COL32(255, 255, 255, 22));
+    }
+    else if (const ImTextureID veil = ui::veil::Render(bb.Min, bb.GetSize()))
         dl->AddImageRounded(veil, bb.Min, bb.Max, ImVec2(0, 0), ImVec2(1, 1), IM_COL32_WHITE, kShellR);
     else
         dl->AddRectFilled(bb.Min, bb.Max, ui::col::shell, kShellR);
-    dl->AddRect(bb.Min, bb.Max, IM_COL32(255, 255, 255, 20), kShellR);
-    dl->AddText(ui::Brand(), ui::kBrandSize, ImVec2(bb.Min.x + kPadX, bb.Min.y + 22.0f), ui::col::white, "natware");
-    dl->AddText(ui::Regular(), 22.0f, ImVec2(bb.Min.x + kPadX, bb.Min.y + 58.0f), ui::col::text, "Choose a mode");
+    dl->AddRect(bb.Min, bb.Max, IM_COL32(255, 255, 255, 34), kShellR);
+    // A one-pixel shadow keeps the white text clean over the brighter parts of the picture.
+    auto title_text = [&](ImFont* font, float size, ImVec2 pos, ImU32 col, const char* text)
+    {
+        dl->AddText(font, size, ImVec2(pos.x + 1.0f, pos.y + 1.0f), IM_COL32(0, 0, 0, 150), text);
+        dl->AddText(font, size, pos, col, text);
+    };
+    title_text(ui::Brand(), ui::kBrandSize, ImVec2(bb.Min.x + kPadX, bb.Min.y + 22.0f), ui::col::white, "natware");
+    title_text(ui::SemiBold(), 22.0f, ImVec2(bb.Min.x + kPadX, bb.Min.y + 58.0f), ui::col::white, "Choose a mode");
 
     // Close natware from here (or Esc): it fades out like a choice, then the program exits.
-    if (chosen < 0 && (ShellCloseButton(dl, "##picker_close", ImVec2(bb.Max.x - 16.0f - 28.0f, bb.Min.y + 16.0f))
+    // Closing from here (or Esc) fades the launcher out like a choice, then natware exits. With
+    // the update dialog up, Esc belongs to the dialog.
+    if (chosen < 0 && !dialog && (ShellCloseButton(dl, "##picker_close", ImVec2(bb.Max.x - 16.0f - 28.0f, bb.Min.y + 16.0f), true)
             || ImGui::IsKeyPressed(ImGuiKey_Escape, false)))
     {
         chosen = 2;
@@ -2579,8 +2558,8 @@ void Menu::DrawModePicker()
         const ImVec2 p(bb.Min.x + kPadX + i * (card_w + kGap), bb.Min.y + kCardY);
         ImGui::SetCursorScreenPos(p);
         ImGui::PushID(i);
-        const bool pressed = ImGui::InvisibleButton("##mode", ImVec2(card_w, kCardH));
-        const bool hovered = ImGui::IsItemHovered() && chosen < 0 && !updating;
+        const bool pressed = ImGui::InvisibleButton("##mode", ImVec2(card_w, kCardH)) && !dialog;
+        const bool hovered = ImGui::IsItemHovered() && chosen < 0 && !updating && !dialog;
         const ImGuiID id = ImGui::GetItemID();
         ImGui::PopID();
         if (pressed && chosen < 0 && !updating)
@@ -2601,26 +2580,27 @@ void Menu::DrawModePicker()
 
         const ImVec2 q(p.x, p.y - floorf(h * 3.0f + 0.5f));
         const ImVec2 q1(q.x + card_w, q.y + kCardH);
-        ui::veil::Glass(dl, q, q1, 12.0f, 0.08f);
+        // Dark glass over the picture: a lit top edge, a rim that brightens on hover.
+        dl->AddRectFilled(q, q1, IM_COL32(10, 8, 14, static_cast<int>(128.0f + 52.0f * h)), 14.0f);
+        dl->AddRect(q, q1, IM_COL32(255, 255, 255, static_cast<int>(34.0f + 44.0f * h)), 14.0f);
         ui::Spotlight(dl, id, q, q1);
 
-        ui::DrawIcon(dl, m.icon, ImVec2(q.x + 30.0f, q.y + 32.0f), mix(ui::col::text_dim, ui::col::white, h), 1.1f);
-        // Lucide chevron-right on the icon grid (0.62 px per unit, like ui::DrawIcon).
-        const ImVec2 c(q1.x - 28.0f + h * 3.0f, q.y + 32.0f);
-        const float u = 0.62f * 0.9f;
+        // The icon on its own, and a chevron that comes forward on hover: nothing boxed in.
+        ui::DrawIcon(dl, m.icon, ImVec2(q.x + 32.0f, q.y + 34.0f), ui::col::white, 1.3f);
+        const ImVec2 c(q1.x - 26.0f + h * 3.0f, q.y + 34.0f);
+        const float u = 0.62f;
         dl->PathLineTo(ImVec2(c.x - 3.0f * u, c.y - 6.0f * u));
         dl->PathLineTo(ImVec2(c.x + 3.0f * u, c.y));
         dl->PathLineTo(ImVec2(c.x - 3.0f * u, c.y + 6.0f * u));
-        dl->PathStroke(mix(ui::col::text_faint, ui::col::text, h), ImDrawFlags_None, 1.4f);
+        dl->PathStroke(mix(IM_COL32(240, 240, 243, 120), ui::col::white, h), ImDrawFlags_None, 1.6f);
 
-        dl->AddText(ui::Regular(), 17.0f, ImVec2(q.x + 20.0f, q.y + kCardH - 58.0f), mix(ui::col::text, ui::col::white, h), m.label);
-        dl->AddText(ui::Regular(), 14.0f, ImVec2(q.x + 20.0f, q.y + kCardH - 33.0f), ui::col::text_dim, m.detail);
+        dl->AddText(ui::SemiBold(), 18.0f, ImVec2(q.x + 18.0f, q.y + kCardH - 60.0f), ui::col::white, m.label);
+        dl->AddText(ui::Regular(), 14.0f, ImVec2(q.x + 18.0f, q.y + kCardH - 34.0f), IM_COL32(240, 240, 243, 190), m.detail);
     }
-    if (update_rows)
-        UpdateRows(dl, bb, kPadX, bb.Min.y + kCardY + kCardH + 16.0f, updating || chosen >= 0);
-    UpdateFooter(dl, bb, kPadX, bb.Min.y + kCardY + kCardH + 16.0f + rows_h);
-    if (chosen < 0)
+    UpdateFooter(dl, bb, kPadX, bb.Min.y + kCardY + kCardH + 16.0f);
+    if (chosen < 0 && !dialog)
         DragCard(size);
+    DrawUpdateDialog(dl, bb, now);
     CardInput(bb);
     ImGui::End();
 }
@@ -2841,7 +2821,7 @@ void Menu::DrawExecutorUI()
     dl->AddLine(ImVec2(bb.Min.x + sidebar_w, bb.Min.y + 16),
         ImVec2(bb.Min.x + sidebar_w, bb.Max.y - 16), ui::col::line);
 
-    dl->AddText(ui::Brand(), ui::kBrandSize, ImVec2(bb.Min.x + 20, bb.Min.y + 23), ui::col::text, "natware");
+    ui::PixelText(dl, ImVec2(bb.Min.x + 20, bb.Min.y + 23), ui::col::text, "natware");
     dl->AddText(ImVec2(bb.Min.x + 20, bb.Min.y + 51), ui::col::text_faint, "WORKSPACE");
     const float nav_x = bb.Min.x + 10;
     if (ui::NavItem("Editor", ui::Icon::Layers, page == 0,

@@ -212,7 +212,6 @@ namespace
 			B("visuals.enable_enemies", v::enable_enemies),
 			K("visuals.esp_key", v::esp_key),
 			I("visuals.esp_key_mode", v::esp_key_mode),
-			I("visuals.esp_style", v::esp_style),
 			B("visuals.enable_client", v::enable_client),
 			B("visuals.teamcheck", v::teamcheck),
 			B("visuals.knock_check", v::knock_check),
@@ -1027,6 +1026,8 @@ namespace config
 		{
 			json root = current_document();
 			root["natware_last"]["loaded_config"] = live().loaded;
+			root["natware_last"]["card_x"] = settings::menu::card_x;
+			root["natware_last"]["card_y"] = settings::menu::card_y;
 			return root.dump(2) + "\n";
 		}
 	}
@@ -1037,6 +1038,10 @@ namespace config
 		if (!read_json(data_path("last.json"), root))
 			return false;
 		apply_document(root);
+		if (const json* x = find(root, "natware_last.card_x"); x && x->is_number())
+			settings::menu::card_x = x->get<float>();
+		if (const json* y = find(root, "natware_last.card_y"); y && y->is_number())
+			settings::menu::card_y = y->get<float>();
 		if (const json* name = find(root, "natware_last.loaded_config"); name && name->is_string())
 		{
 			const std::string loaded = name->get<std::string>();

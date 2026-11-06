@@ -463,6 +463,10 @@ int main()
     if (strstr(GetCommandLineA(), "--preview"))
         return menu_preview::run();
 
+    // Your last settings come back before anything shows, so the launcher, the card position and
+    // the screenproof setting are already as you left them.
+    const bool restored_early = config::restore_last_settings();
+
     const bool cli_external = strstr(GetCommandLineA(), "--external") != nullptr;
     const bool cli_editor = strstr(GetCommandLineA(), "--editor") != nullptr;   // straight to editor.exe
 
@@ -791,7 +795,7 @@ int main()
     // when there's nothing saved yet (the first run).
     if (settings::app_mode == settings::MODE_EXTERNAL)
     {
-        if (!config::restore_last_settings() && !external_config::autoload_config.empty()
+        if (!restored_early && !external_config::autoload_config.empty()
             && config::config_exists(external_config::autoload_config))
             config::load_config(external_config::autoload_config);
         g_settings_restored = true;

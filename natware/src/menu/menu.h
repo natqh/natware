@@ -1,6 +1,7 @@
 #pragma once
 
 #include <D3D11.h>
+#include <imgui/imgui.h>
 #include <vector>
 
 class Menu
@@ -28,6 +29,11 @@ static void DrawUpdatePrompt();   // every frame in External: offers a release t
 	struct PreviewPage { const char* name; int tab; int sub; float mouse_x = -1.0f; float mouse_y = -1.0f; int button = -1; float drag_x = -1.0f; int click_frame = 10; int frames = 45; bool closing = false; };
 	static const std::vector<PreviewPage>& PreviewPages();
 	static void PreviewSelect(const PreviewPage& page);
+	// A point to click in the launcher's update dialog as last drawn: "row" (the row-th update's
+	// tick), "later" (Not now) or "update" (Update now).
+	static ImVec2 UpdateDialogPoint(const char* which, int row = 0);
+	// The screenshot tests: a made-up update, so the dialog can be shot offline.
+	static void PreviewUpdateDialog(bool on);
 
 public:
 	inline static bool m_bMenuVisible = false;

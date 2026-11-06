@@ -42,8 +42,8 @@ namespace
         float list_h;       // a ListItem
         float block_gap;    // before a non-row block opening a card
     };
-    constexpr Metrics kRoomy   = { 44.0f, 16.0f, 4.0f, 12.0f, 28.0f, 26.0f, 18.0f, 36.0f, 38.0f, 10.0f };
-    constexpr Metrics kCompact = { 34.0f, 12.0f, 3.0f, 10.0f, 14.0f, 22.0f, 14.0f, 28.0f, 30.0f, 8.0f };
+    constexpr Metrics kRoomy   = { 44.0f, 16.0f, 4.0f, 12.0f, 28.0f, 32.0f, 10.0f, 36.0f, 38.0f, 10.0f };
+    constexpr Metrics kCompact = { 34.0f, 12.0f, 3.0f, 10.0f, 14.0f, 30.0f, 10.0f, 28.0f, 30.0f, 8.0f };
     const Metrics* g_metrics = &kRoomy;
     const Metrics& M() { return *g_metrics; }
 
@@ -57,24 +57,34 @@ namespace
 
     constexpr float kLabelSize  = 15.0f;   // Arial
     constexpr float kSmallSize  = 14.0f;
-    constexpr float kKeySize    = 12.5f;   // text in a keybind pill
+    constexpr float kKeySize    = 13.0f;   // text in a keybind pill
+    constexpr float kSectionSize = 18.0f;  // Monocraft section labels: twice its pixel grid
 
-    constexpr float kCardFrost  = 0.0f;   // Glass Surface backgroundOpacity
+    constexpr float kCardFrost  = 0.62f;  // Glass Surface backgroundOpacity
+    constexpr float kGlassBend  = -180.0f; // Glass Surface distortionScale (the component's default)
     constexpr ImU32 kCtrlFill   = IM_COL32(255, 255, 255, 12);
     constexpr ImU32 kCtrlHover  = IM_COL32(255, 255, 255, 20);
     constexpr ImU32 kCtrlBorder = IM_COL32(255, 255, 255, 16);
-    constexpr ImU32 kPopupFill  = IM_COL32(20, 20, 24, 255);
-    constexpr ImU32 kPopupLine  = IM_COL32(255, 255, 255, 22);
+    constexpr ImU32 kPopupFill  = IM_COL32(20, 15, 12, 255);
+    constexpr ImU32 kPopupLine  = IM_COL32(255, 225, 190, 26);
 
     ImFont* g_regular  = nullptr;
     ImFont* g_semibold = nullptr;
     ImFont* g_brand    = nullptr;
     ImFont* g_esp = nullptr;
 
-    struct CardState { ImVec2 start; float width; ImGuiID id; int rows; int items; };
+    // A card's recessed sub-blocks are remembered as y ranges and painted in EndCard, under the rows.
+    struct CardState { ImVec2 start; float width; ImGuiID id; int rows; int items; std::vector<ImVec2> subs; };
     std::vector<CardState> g_cards;
     bool g_last_was_row = false;   // decides the card's bottom padding
-    std::vector<float>     g_subs;
+    struct SubState { float start_y; int items; };
+    std::vector<SubState>  g_subs;
+
+    // True for the first thing in a sub-block (it needs no divider: the panel's edge is its top).
+    bool SubFirst()
+    {
+        return !g_subs.empty() && g_subs.back().items++ == 0;
+    }
     float g_col_w = 0.0f;
     float g_col_h = 0.0f;
 
@@ -168,9 +178,20 @@ namespace
 
     float RightEdge(ImGuiWindow* w)
     {
+        // Inside a sub-block the controls keep the same margin from the panel's right edge as the
+        // labels have from its left.
         if (!g_cards.empty())
-            return g_cards.back().start.x + g_cards.back().width - M().card_pad;
+            return g_cards.back().start.x + g_cards.back().width - M().card_pad - M().sub_indent * (float)g_subs.size();
         return w->DC.CursorPos.x + ImGui::GetContentRegionAvail().x;
+    }
+
+    // A hairline across the current row's width: to the card's edge, or to the panel's edge
+    // inside a sub-block.
+    void RowLine(ImGuiWindow* w, float x0, float y)
+    {
+        const float x1 = RightEdge(w) + (g_subs.empty() ? M().card_pad : 0.0f);
+        w->DrawList->AddLine(ImVec2(x0, floorf(y) + 0.5f), ImVec2(x1, floorf(y) + 0.5f),
+            IM_COL32(255, 255, 255, (int)(14 * GImGui->Style.Alpha)), 1.0f);
     }
 
     Row MakeRow(const char* label, float height)
@@ -183,11 +204,11 @@ namespace
         g_last_was_row = true;
 
         // Hairline between rows of a card, starting at the row's (possibly indented) left edge.
+        const bool sub_first = SubFirst();
         if (!g_cards.empty())
             g_cards.back().items++;
-        if (!g_cards.empty() && g_cards.back().rows++ > 0)
-            w->DrawList->AddLine(ImVec2(r.bb.Min.x, floorf(r.bb.Min.y) + 0.5f), ImVec2(RightEdge(w) + M().card_pad, floorf(r.bb.Min.y) + 0.5f),
-                IM_COL32(255, 255, 255, (int)(14 * GImGui->Style.Alpha)), 1.0f);
+        if (!g_cards.empty() && g_cards.back().rows++ > 0 && !sub_first)
+            RowLine(w, r.bb.Min.x, r.bb.Min.y);
         return r;
     }
 
@@ -257,7 +278,7 @@ namespace
         DrawLabel(dl, g_regular, kLabelSize, ImVec2(bb.Min.x + 10.0f, LabelY(cy)), bb.Max.x - 26.0f,
             selected || hovered ? col::white : col::text_dim, label);
         if (selected)
-            DrawIcon(dl, Icon::Check, ImVec2(bb.Max.x - 14.0f, cy), C(col::white), 0.75f);
+            DrawIcon(dl, Icon::Check, ImVec2(bb.Max.x - 14.0f, cy), C(col::accent), 0.75f);
 
         if (pressed)
             ImGui::CloseCurrentPopup();
@@ -269,10 +290,13 @@ namespace
     void DrawSwitch(ImDrawList* dl, const ImRect& bb, float t, bool hovered)
     {
         const float r = bb.GetHeight() * 0.5f;
-        const ImU32 off = hovered ? IM_COL32(255, 255, 255, 44) : IM_COL32(255, 255, 255, 32);
-        dl->AddRectFilled(bb.Min, bb.Max, C(Mix(off, col::white, t)), r);
+        const ImU32 off = hovered ? IM_COL32(255, 255, 255, 40) : IM_COL32(255, 255, 255, 28);
+        dl->AddRectFilled(bb.Min, bb.Max, C(Mix(off, col::accent, t)), r);
+        dl->AddRect(bb.Min, bb.Max, C(Mix(IM_COL32(255, 255, 255, hovered ? 38 : 26), IM_COL32(255, 255, 255, 0), t)), r);
         const float kx = bb.Min.x + r + (bb.GetWidth() - 2.0f * r) * t;
-        dl->AddCircleFilled(ImVec2(kx, bb.Min.y + r), r - 3.0f, C(Mix(IM_COL32(255, 255, 255, 180), col::shell, t)), 0);
+        const ImVec2 knob(kx, bb.Min.y + r);
+        dl->AddCircleFilled(ImVec2(knob.x, knob.y + 1.0f), r - 2.5f, C(IM_COL32(0, 0, 0, (int)(70 * t + 30))), 0);   // soft knob shadow
+        dl->AddCircleFilled(knob, r - 3.0f, C(Mix(IM_COL32(236, 230, 222, 230), col::white, t)), 0);   // stays white when on (the user's call)
     }
 
     bool Swatch(const char* str_id, const ImRect& bb, float* color)
@@ -670,7 +694,7 @@ namespace
             C(Fade(IM_COL32(255, 255, 255, 40), opacity)), bar_h * 0.5f);
         if (frac > 0.0f)
             dl->AddRectFilled(ImVec2(bx0, bar_cy - bar_h * 0.5f), ImVec2(bx0 + (bx1 - bx0) * frac, bar_cy + bar_h * 0.5f),
-                C(Fade(col::white, opacity)), bar_h * 0.5f);
+                C(Fade(col::accent, opacity)), bar_h * 0.5f);
 
         const ImU32 icon_col = C(Fade(IM_COL32(221, 221, 221, 255), opacity));
         DrawIcon(dl, Icon::Minus, ImVec2(r.bb.Min.x + icon_w * 0.5f - (s.region < 0 ? s.overflow : 0.0f), bar_cy), icon_col, 0.8f * PopScale(s.pop[0]));
@@ -707,23 +731,25 @@ void LoadFonts(ImFont* fallback)
 {
     ImGuiIO& io = ImGui::GetIO();
 
-    // All UI text is regular Arial (the user's call: no bold anywhere, so the "semibold" role is
-    // the same face). Rendered unhinted with fractional advances, the way a browser draws it:
-    // hinting plus whole-pixel advances made small text crunchy and spaced it unevenly ("Silent
-    // aim" ran together), which read as tiny and pixelated. Coverage is lifted a little so light
-    // text on the dark veil keeps its weight.
+    // All UI text is regular Arial (the user's call; no bold anywhere, so the "semibold" role is
+    // the same face), rasterized with Arial's own TrueType hinting. Side by side (--preview
+    // --fonts), that was the only setting that looked like Windows' Arial: unhinted and light-
+    // hinted text came out soft and unevenly spaced, which read as pixely and squished. Coverage
+    // is lifted a touch so light text on the dark shell keeps its weight.
     auto load = [&](const char* path, float size) -> ImFont*
     {
         ImFontConfig cfg;
-        cfg.FontLoaderFlags = ImGuiFreeTypeLoaderFlags_NoHinting;
-        cfg.RasterizerMultiply = 1.12f;
-        cfg.PixelSnapH = false;
+        cfg.FontLoaderFlags = 0;   // the font's own hinting
+        cfg.RasterizerMultiply = 1.1f;
+        cfg.PixelSnapH = true;
         if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES)
             return nullptr;
         return io.Fonts->AddFontFromFileTTF(path, size, &cfg);
     };
 
     g_regular = load("C:\\Windows\\Fonts\\arial.ttf", kLabelSize);
+    if (!g_regular)
+        g_regular = load("C:\\Windows\\Fonts\\segoeui.ttf", kLabelSize);
     if (!g_regular)
         g_regular = fallback;
     g_semibold = g_regular;
@@ -762,6 +788,18 @@ ImFont* EspFont() { return g_esp; }
 ImFont* Regular()  { return g_regular; }
 ImFont* SemiBold() { return g_semibold; }
 ImFont* Brand()    { return g_brand; }
+
+// Monocraft with Minecraft's own text shadow: a copy one font pixel down and right (Monocraft's
+// pixel is size / 9), in the text colour at a quarter of its brightness. Sizes that are multiples
+// of 9 keep every stroke on whole pixels.
+void PixelText(ImDrawList* dl, ImVec2 pos, ImU32 col, const char* text, float size)
+{
+    const float px = floorf(size / 9.0f + 0.5f);
+    const ImU32 shadow = IM_COL32(((col >> IM_COL32_R_SHIFT) & 0xFF) / 4, ((col >> IM_COL32_G_SHIFT) & 0xFF) / 4,
+        ((col >> IM_COL32_B_SHIFT) & 0xFF) / 4, (col >> IM_COL32_A_SHIFT) & 0xFF);
+    DrawText(dl, g_brand, size, ImVec2(pos.x + px, pos.y + px), shadow, text);
+    DrawText(dl, g_brand, size, pos, col, text);
+}
 
 // Game Programming Gems 4's SmoothDamp: an exact-enough critically damped spring step that
 // stays stable at any frame time.
@@ -978,8 +1016,22 @@ void DrawIcon(ImDrawList* dl, Icon icon, ImVec2 c, ImU32 color, float scale)
         break;
 
     case Icon::Close:
-        L(18, 6, 6, 18); L(6, 6, 18, 18);
+        // Drawn heavier than the line icons, so the X reads as a solid, confident button.
+    {
+        // Bolder than the line icons. Each arm is one capsule shape (a line plus end circles
+        // double-covered at the ends and left knobs), with the arms long next to the stroke.
+        const float w = th * 1.5f;
+        auto arm = [&](ImVec2 a, ImVec2 b)
+        {
+            const float ang = atan2f(b.y - a.y, b.x - a.x);
+            dl->PathArcTo(a, w * 0.5f, ang + IM_PI * 0.5f, ang + IM_PI * 1.5f, 10);
+            dl->PathArcTo(b, w * 0.5f, ang - IM_PI * 0.5f, ang + IM_PI * 0.5f, 10);
+            dl->PathFillConvex(color);
+        };
+        arm(P(19.0f, 5.0f), P(5.0f, 19.0f));
+        arm(P(5.0f, 5.0f), P(19.0f, 19.0f));
         break;
+    }
 
     case Icon::Check:
         Poly({ { 20, 6 }, { 9, 17 }, { 4, 12 } }, false);
@@ -1038,14 +1090,14 @@ bool NavItem(const char* label, Icon icon, bool selected, ImVec2 min, ImVec2 max
         // The selection is a Glass Surface pane, faded in through the style alpha.
         const float alpha = GImGui->Style.Alpha;
         GImGui->Style.Alpha = alpha * ts;
-        veil::Glass(dl, bb.Min, bb.Max, 8.0f, kCardFrost);
+        veil::Glass(dl, bb.Min, bb.Max, 8.0f, 0.35f, kGlassBend);
         GImGui->Style.Alpha = alpha;
     }
 
-    const ImU32 fg = Mix(Mix(IM_COL32(240, 240, 243, 135), col::text, th), col::white, ts);
+    const ImU32 fg = Mix(Mix(IM_COL32(240, 240, 243, 178), col::white, th), col::white, ts);
     const float cy = bb.GetCenter().y;
-    DrawIcon(dl, icon, ImVec2(bb.Min.x + 20.0f, cy), C(fg), 0.95f);
-    DrawText(dl, g_regular, kLabelSize, ImVec2(bb.Min.x + 40.0f, LabelY(cy)), fg, label);
+    DrawIcon(dl, icon, ImVec2(bb.Min.x + 21.0f, cy), C(Mix(fg, col::accent, ts)), 0.95f);   // the open page's icon lights up
+    DrawText(dl, ts > 0.5f ? g_semibold : g_regular, kLabelSize, ImVec2(bb.Min.x + 42.0f, LabelY(cy)), fg, label);
     return pressed;
 }
 
@@ -1267,11 +1319,23 @@ namespace
         }
     }
 
-    // Non-row blocks (buttons, inputs, list items, text) get breathing room when they open a card.
+    // Non-row blocks (buttons, inputs, list items, text) get breathing room when they open a card,
+    // and a divider with a gap when they follow a row, so they read as part of the list instead of
+    // hanging off its bottom.
     void BeforeBlock()
     {
-        if (!g_cards.empty() && g_cards.back().items++ == 0)
-            ImGui::ItemSize(ImVec2(0.0f, M().block_gap));
+        if (!g_cards.empty())
+        {
+            ImGuiWindow* w = ImGui::GetCurrentWindow();
+            const bool sub_first = SubFirst();
+            if (g_cards.back().items++ == 0)
+                ImGui::ItemSize(ImVec2(0.0f, M().block_gap));
+            else if (g_last_was_row && !sub_first)
+            {
+                RowLine(w, w->DC.CursorPos.x, w->DC.CursorPos.y);
+                ImGui::ItemSize(ImVec2(0.0f, 10.0f));
+            }
+        }
         g_last_was_row = false;
     }
 }
@@ -1281,7 +1345,13 @@ void BeginCard(const char* title)
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     if (title && *title)
     {
-        DrawText(w->DrawList, g_semibold, 14.5f, ImVec2(w->DC.CursorPos.x + 2.0f, w->DC.CursorPos.y), IM_COL32(240, 240, 243, 150), title);
+        // Section label in the Minecraft face, upper case, with Minecraft's text shadow.
+        char up[64];
+        size_t n = 0;
+        for (; title[n] && n < sizeof(up) - 1; n++)
+            up[n] = (char)toupper((unsigned char)title[n]);
+        up[n] = '\0';
+        PixelText(w->DrawList, ImVec2(w->DC.CursorPos.x + 2.0f, w->DC.CursorPos.y + 2.0f), IM_COL32(245, 239, 230, 255), up, kSectionSize);
         ImGui::ItemSize(ImVec2(0.0f, M().title_h));
     }
     g_cards.push_back({ w->DC.CursorPos, ImGui::GetContentRegionAvail().x - kGutter, w->GetID(title), 0, 0 });
@@ -1310,7 +1380,16 @@ void EndCard()
     const ImRect r(s.start, ImVec2(s.start.x + s.width, ImGui::GetItemRectMax().y));
     ImDrawList* dl = w->DrawList;
     dl->ChannelsSetCurrent(0);
-    veil::Glass(dl, r.Min, r.Max, M().card_round, kCardFrost);
+    // React Bits Glass Surface: refracts the field at its rim, frosted with backgroundOpacity,
+    // with the component's inner rims in faint amber (veil.cpp).
+    veil::Glass(dl, r.Min, r.Max, M().card_round, kCardFrost, kGlassBend);
+    // Recessed panels behind the sub-blocks (settings that depend on the row above them).
+    for (const ImVec2& sub : s.subs)
+    {
+        const ImVec2 a(r.Min.x + 8.0f, sub.x), b(r.Max.x - 8.0f, sub.y);
+        dl->AddRectFilled(a, b, C(IM_COL32(0, 0, 0, 70)), 9.0f);
+        dl->AddRect(a, b, C(IM_COL32(255, 225, 190, 14)), 9.0f);
+    }
     const SpotState& spot = UpdateSpotlight(s.id, r);
     if (spot.presence > 0.002f)
         DrawSpotlight(dl, r, spot);
@@ -1329,21 +1408,44 @@ void Spotlight(ImDrawList* dl, ImGuiID id, ImVec2 min, ImVec2 max)
 
 void BeginSub()
 {
+    ImGuiWindow* w = ImGui::GetCurrentWindow();
     ImGui::PushOverrideID(g_last_row_id);
+    g_subs.push_back({ w->DC.CursorPos.y + 3.0f, 0 });
+    ImGui::ItemSize(ImVec2(0.0f, 6.0f));
     ImGui::Indent(M().sub_indent);
-    g_subs.push_back(0.0f);
 }
 
 void EndSub()
 {
+    ImGuiWindow* w = ImGui::GetCurrentWindow();
+    const SubState s = g_subs.back();
     g_subs.pop_back();
     ImGui::Unindent(M().sub_indent);
     ImGui::PopID();
+    if (s.items == 0)
+    {
+        // Nothing was put in it (a status line with nothing to say): no panel, and the room
+        // BeginSub took goes back, so the rows close up as if the block weren't there.
+        w->DC.CursorPos.y = s.start_y - 3.0f;
+        w->DC.CursorMaxPos.y = ImMin(w->DC.CursorMaxPos.y, w->DC.CursorPos.y);
+        return;
+    }
+    ImGui::ItemSize(ImVec2(0.0f, 6.0f));
+    if (!g_cards.empty())
+        g_cards.back().subs.push_back(ImVec2(s.start_y, w->DC.CursorPos.y - 3.0f));
+    g_last_was_row = false;   // the panel closes the group: what follows starts a fresh block
 }
 
 void Spacing(float h)
 {
     ImGui::ItemSize(ImVec2(0.0f, h));
+}
+
+void AlignRight(float width)
+{
+    BeforeBlock();   // the divider before the block starts at the row's left, before the shift
+    ImGuiWindow* w = ImGui::GetCurrentWindow();
+    w->DC.CursorPos.x += ImMax(0.0f, RowWidth() - width);
 }
 
 void SetCompact(bool compact)
@@ -1402,7 +1504,7 @@ bool Combo(const char* label, int* v, std::initializer_list<const char*> items)
     const char* const* list = items.begin();
 
     const float fw = ImMin(150.0f, floorf(r.bb.GetWidth() * 0.52f));
-    const ImRect frame(ImVec2(r.bb.Max.x - fw, cy - 13.0f), ImVec2(r.bb.Max.x, cy + 13.0f));
+    const ImRect frame(ImVec2(r.bb.Max.x - fw, cy - 12.0f), ImVec2(r.bb.Max.x, cy + 12.0f));   // the key pill's height: one rail, one cap height
     ImGui::ItemAdd(frame, r.id);
     bool hovered = false, held = false;
     const bool pressed = ImGui::ButtonBehavior(frame, r.id, &hovered, &held);
@@ -1415,10 +1517,10 @@ bool Combo(const char* label, int* v, std::initializer_list<const char*> items)
     }
 
     const float h = Anim(r.id, (hovered || open) ? 1.0f : 0.0f);
-    dl->AddRectFilled(frame.Min, frame.Max, C(Mix(kCtrlFill, kCtrlHover, h)), 6.0f);
-    dl->AddRect(frame.Min, frame.Max, C(open ? IM_COL32(255, 255, 255, 64) : kCtrlBorder), 6.0f);
+    dl->AddRectFilled(frame.Min, frame.Max, C(Mix(IM_COL32(255, 255, 255, 16), IM_COL32(255, 255, 255, 26), h)), 7.0f);
+    dl->AddRect(frame.Min, frame.Max, C(open ? IM_COL32(255, 255, 255, 70) : Mix(IM_COL32(255, 255, 255, 24), IM_COL32(255, 255, 255, 40), h)), 7.0f);
     const char* preview = (*v >= 0 && *v < count) ? list[*v] : "-";
-    DrawLabel(dl, g_regular, kSmallSize + 0.5f, ImVec2(frame.Min.x + 10.0f, cy - (kSmallSize + 0.5f) * 0.5f - 1.0f), frame.Max.x - 26.0f, col::text, preview);
+    DrawLabel(dl, g_regular, kSmallSize, ImVec2(frame.Min.x + 10.0f, cy - (kSmallSize) * 0.5f - 1.0f), frame.Max.x - 26.0f, col::text, preview);
     DrawIcon(dl, Icon::ChevronDown, ImVec2(frame.Max.x - 13.0f, cy + 0.5f), C(col::text_dim), 0.65f);
     DrawLabel(dl, g_regular, kLabelSize, ImVec2(r.bb.Min.x, LabelY(cy)), frame.Min.x - 10.0f, LabelColor(false), label);
 
@@ -1478,10 +1580,11 @@ bool ColorRow(const char* label, float* color)
     return changed;
 }
 
-bool InputText(const char* id, char* buf, size_t size, const char* hint)
+bool InputText(const char* id, char* buf, size_t size, const char* hint, float width)
 {
     BeforeBlock();
-    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12.0f, 9.0f));
+    // Padded to a Button's height, so a field and a button can share a row.
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12.0f, (M().button_h - ImGui::GetFontSize()) * 0.5f));
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.0f);
     ImGui::PushStyleColor(ImGuiCol_FrameBg, kCtrlFill);
@@ -1489,7 +1592,7 @@ bool InputText(const char* id, char* buf, size_t size, const char* hint)
     ImGui::PushStyleColor(ImGuiCol_FrameBgActive, kCtrlHover);
     ImGui::PushStyleColor(ImGuiCol_Border, kCtrlBorder);
     ImGui::PushStyleColor(ImGuiCol_TextDisabled, col::text_faint);
-    ImGui::SetNextItemWidth(RowWidth());
+    ImGui::SetNextItemWidth(width > 0.0f ? width : RowWidth());
     const bool changed = ImGui::InputTextWithHint(id, hint, buf, size);
     ImGui::PopStyleColor(5);
     ImGui::PopStyleVar(3);
@@ -1501,7 +1604,7 @@ void Text(const char* text, ImU32 color)
     BeforeBlock();
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     ImGui::PushStyleColor(ImGuiCol_Text, color);
-    ImGui::PushFont(g_regular, kSmallSize + 0.5f);
+    ImGui::PushFont(g_regular, kSmallSize);
     ImGui::PushTextWrapPos(RightEdge(w) - w->Pos.x + w->Scroll.x);
     ImGui::ItemSize(ImVec2(0.0f, 3.0f));
     ImGui::TextUnformatted(text);
@@ -1531,7 +1634,7 @@ void Legend(const char* text, ImU32 swatch)
     const Row r = MakeRow(text, 28.0f);
     const float cy = r.bb.GetCenter().y;
     w->DrawList->AddCircleFilled(ImVec2(r.bb.Min.x + 5.0f, cy), 4.0f, C(swatch));
-    DrawText(w->DrawList, g_regular, kSmallSize + 0.5f, ImVec2(r.bb.Min.x + 18.0f, cy - 8.0f), col::text_dim, text);
+    DrawText(w->DrawList, g_regular, kSmallSize, ImVec2(r.bb.Min.x + 18.0f, cy - 8.0f), col::text_dim, text);
 }
 
 void Empty(const char* text)
@@ -1540,8 +1643,8 @@ void Empty(const char* text)
     if (w->SkipItems)
         return;
     const Row r = MakeRow(text, M().row + 10.0f);
-    const ImVec2 ts = TextSize(g_regular, kSmallSize + 0.5f, text);
-    DrawText(w->DrawList, g_regular, kSmallSize + 0.5f, r.bb.GetCenter() - ts * 0.5f - ImVec2(0.0f, 1.0f), col::text_faint, text);
+    const ImVec2 ts = TextSize(g_regular, kSmallSize, text);
+    DrawText(w->DrawList, g_regular, kSmallSize, r.bb.GetCenter() - ts * 0.5f - ImVec2(0.0f, 1.0f), col::text_faint, text);
 }
 
 bool Button(const char* label, Btn kind, float width)
@@ -1566,36 +1669,135 @@ bool Button(const char* label, Btn kind, float width)
     if (kind == Btn::Primary && (GImGui->CurrentItemFlags & ImGuiItemFlags_Disabled))
         kind = Btn::Secondary;
 
-    ImU32 fill = 0, border = 0, text = 0;
+    ImU32 fill = 0, border = 0, text = 0, shine = 0;
     switch (kind)
     {
     case Btn::Primary:
-        fill = Mix(col::white, IM_COL32(212, 212, 218, 255), h);
-        text = col::shell;
+        fill = Mix(col::accent, IM_COL32(240, 176, 104, 255), h);
+        text = col::accent_ink;
         break;
     case Btn::Secondary:
-        fill = Mix(kCtrlFill, kCtrlHover, h);
-        border = kCtrlBorder;
-        text = col::text;
+        fill = Mix(IM_COL32(255, 255, 255, 17), IM_COL32(255, 255, 255, 28), h);
+        border = Mix(IM_COL32(255, 255, 255, 24), IM_COL32(255, 255, 255, 44), h);
+        shine = IM_COL32(255, 255, 255, 34);
+        text = col::white;
         break;
     case Btn::Danger:
-        fill = Mix(IM_COL32(255, 96, 96, 18), IM_COL32(255, 96, 96, 34), h);
-        border = IM_COL32(255, 96, 96, 56);
+        fill = Mix(IM_COL32(255, 96, 96, 20), IM_COL32(255, 96, 96, 38), h);
+        border = Mix(IM_COL32(255, 96, 96, 60), IM_COL32(255, 112, 112, 110), h);
+        shine = IM_COL32(255, 140, 140, 36);
         text = col::danger;
         break;
     }
 
     ImDrawList* dl = w->DrawList;
-    dl->AddRectFilled(bb.Min, bb.Max, C(fill), 8.0f);
+    constexpr float kR = 9.0f;
+    if (kind == Btn::Primary)
+        dl->AddRectFilled(ImVec2(bb.Min.x, bb.Min.y + 1.0f), ImVec2(bb.Max.x, bb.Max.y + 1.0f), C(IM_COL32(0, 0, 0, 60)), kR);   // a hair of depth
+    dl->AddRectFilled(bb.Min, bb.Max, C(fill), kR);
     if (border)
-        dl->AddRect(bb.Min, bb.Max, C(border), 8.0f);
+        dl->AddRect(bb.Min, bb.Max, C(border), kR);
+    (void)shine;
+    if (held)
+        dl->AddRectFilled(bb.Min, bb.Max, C(IM_COL32(0, 0, 0, 38)), kR);   // pressed
     const char* end = ImGui::FindRenderedTextEnd(label);
-    const ImVec2 ts = TextSize(g_semibold, kSmallSize + 0.5f, label, end);
-    DrawText(dl, g_semibold, kSmallSize + 0.5f, bb.GetCenter() - ts * 0.5f - ImVec2(0.0f, 1.0f), text, label, end);
+    ImFont* const face = kind == Btn::Primary ? g_semibold : g_regular;   // only the main action is bold
+    const ImVec2 ts = TextSize(face, kSmallSize, label, end);
+    DrawText(dl, face, kSmallSize, bb.GetCenter() - ts * 0.5f - ImVec2(0.0f, held ? 0.0f : 1.0f), text, label, end);
     return pressed;
 }
 
-bool ListItem(const char* label, bool selected, const char* detail, ImU32 label_color)
+void DrawAvatar(ImDrawList* dl, ImVec2 c, float r, const AvatarSpec& av)
+{
+    if (av.tex)
+        dl->AddImageRounded(av.tex, ImVec2(c.x - r, c.y - r), ImVec2(c.x + r, c.y + r), ImVec2(0, 0), ImVec2(1, 1), C(IM_COL32_WHITE), r);
+    else
+    {
+        dl->AddCircleFilled(c, r, C(IM_COL32(255, 255, 255, 24)), 0);
+        const char letter[2] = { av.initial, '\0' };
+        const float size = r * 0.95f;
+        const ImVec2 ts = TextSize(g_semibold, size, letter);
+        DrawText(dl, g_semibold, size, ImVec2(c.x - ts.x * 0.5f, c.y - size * 0.5f - 1.0f), col::text_dim, letter);
+    }
+    dl->AddCircle(c, r, C(IM_COL32(255, 255, 255, 28)), 0, 1.0f);   // a hairline edge keeps pale headshots crisp
+    if (av.ring)
+        dl->AddCircle(c, r + 2.5f, C(av.ring), 0, 1.75f);
+}
+
+void ProfileHeader(const AvatarSpec& av, const char* name, const char* handle, float health, const char* health_text,
+    const char* chip, ImU32 chip_color)
+{
+    ImGuiWindow* w = ImGui::GetCurrentWindow();
+    if (w->SkipItems)
+        return;
+    BeforeBlock();
+
+    constexpr float kPortraitW = 120.0f, kPortraitH = 120.0f, kGap = 16.0f, kRound = 12.0f;
+    const ImVec2 pos = w->DC.CursorPos;
+    const ImRect bb(pos, ImVec2(RightEdge(w), pos.y + kPortraitH));
+    ImGui::ItemSize(bb.GetSize());
+    ImDrawList* dl = w->DrawList;
+
+    // ---- portrait: the full avatar on a flat backing ----
+    const ImRect pr(bb.Min, ImVec2(bb.Min.x + kPortraitW, bb.Min.y + kPortraitH));
+    dl->AddRectFilled(pr.Min, pr.Max, C(IM_COL32(24, 24, 29, 255)), kRound);   // solid: nothing shows through
+    if (av.body)
+    {
+        // The render is a square with the figure in the middle: crop to the figure.
+        dl->AddImageRounded(av.body, pr.Min, pr.Max, ImVec2(0.11f, 0.10f), ImVec2(0.89f, 0.88f), C(IM_COL32_WHITE), kRound);   // a square crop: no stretch
+    }
+    else
+    {
+        DrawAvatar(dl, pr.GetCenter(), 32.0f, AvatarSpec{ av.tex, 0, 0, av.initial });
+    }
+    dl->AddRect(pr.Min, pr.Max, C(av.ring ? Fade(av.ring, 0.85f) : IM_COL32(255, 255, 255, 22)), kRound, 0, av.ring ? 1.75f : 1.0f);
+
+    // ---- name, handle, status ----
+    const float tx = pr.Max.x + kGap;
+    DrawLabel(dl, g_semibold, 17.0f, ImVec2(tx, bb.Min.y + 3.0f), bb.Max.x, col::white, name);
+    DrawLabel(dl, g_regular, kSmallSize, ImVec2(tx, bb.Min.y + 26.0f), bb.Max.x, col::text_faint, handle);
+    if (chip && *chip)
+    {
+        const ImVec2 cs = TextSize(g_semibold, 12.0f, chip);
+        const ImRect pill(ImVec2(tx, bb.Min.y + 52.0f), ImVec2(tx + cs.x + 22.0f, bb.Min.y + 74.0f));
+        dl->AddRectFilled(pill.Min, pill.Max, C(Fade(chip_color, 0.14f)), 11.0f);
+        dl->AddRect(pill.Min, pill.Max, C(Fade(chip_color, 0.40f)), 11.0f);
+        dl->AddCircleFilled(ImVec2(pill.Min.x + 11.0f, pill.GetCenter().y), 2.5f, C(chip_color), 12);
+        DrawText(dl, g_semibold, 12.0f, ImVec2(pill.Min.x + 19.0f, pill.Min.y + 4.0f), chip_color, chip);
+    }
+
+    // ---- health: label and numbers, then a bar the full width of the column ----
+    if (health >= 0.0f)
+    {
+        health = ImClamp(health, 0.0f, 1.0f);
+        const ImVec4 red(1.0f, 0.34f, 0.36f, 1.0f), amber(1.0f, 0.76f, 0.28f, 1.0f), green(0.36f, 0.90f, 0.52f, 1.0f);
+        const ImVec4 lo = health < 0.5f ? red : amber, hi = health < 0.5f ? amber : green;
+        const float t = health < 0.5f ? health / 0.5f : (health - 0.5f) / 0.5f;
+        const ImU32 fill = ImGui::ColorConvertFloat4ToU32(ImLerp(lo, hi, t));
+
+        const float label_y = bb.Min.y + 64.0f;   // close under the names: one block, not two islands
+        DrawText(dl, g_regular, 13.0f, ImVec2(tx, label_y), col::text_dim, "Health");
+        if (health_text && *health_text)
+        {
+            const ImVec2 hs = TextSize(g_semibold, 13.0f, health_text);
+            DrawText(dl, g_semibold, 13.0f, ImVec2(bb.Max.x - hs.x, label_y), col::white, health_text);
+        }
+        const ImRect bar(ImVec2(tx, bb.Min.y + 84.0f), ImVec2(bb.Max.x, bb.Min.y + 92.0f));
+        dl->AddRectFilled(bar.Min, bar.Max, C(IM_COL32(0, 0, 0, 110)), 4.0f);
+        dl->AddRect(bar.Min, bar.Max, C(IM_COL32(255, 255, 255, 18)), 4.0f);
+        const float fw = ImMax(8.0f, (bar.GetWidth() - 2.0f) * health);
+        if (health > 0.0f)
+        {
+            const ImVec2 f0(bar.Min.x + 1.0f, bar.Min.y + 1.0f), f1(bar.Min.x + 1.0f + fw, bar.Max.y - 1.0f);
+            dl->AddRectFilled(ImVec2(f0.x - 1.0f, f0.y - 1.0f), ImVec2(f1.x + 1.0f, f1.y + 1.0f), C(Fade(fill, 0.22f)), 5.0f);   // glow
+            dl->AddRectFilled(f0, f1, C(fill), 3.0f);
+            dl->AddRectFilled(f0, ImVec2(f1.x, f0.y + (f1.y - f0.y) * 0.5f), C(IM_COL32(255, 255, 255, 48)), 3.0f, ImDrawFlags_RoundCornersTop);   // sheen
+        }
+    }
+}
+
+
+bool ListItem(const char* label, bool selected, const char* detail, ImU32 label_color, const AvatarSpec* avatar)
 {
     ImGuiWindow* w = ImGui::GetCurrentWindow();
     if (w->SkipItems)
@@ -1632,7 +1834,13 @@ bool ListItem(const char* label, bool selected, const char* detail, ImU32 label_
         DrawText(dl, g_regular, kSmallSize, ImVec2(bb.Max.x - ds.x, cy - kSmallSize * 0.5f - 1.0f), col::text_faint, detail);
         max_x = bb.Max.x - ds.x - 10.0f;
     }
-    DrawLabel(dl, g_regular, kLabelSize, ImVec2(bb.Min.x, LabelY(cy)), max_x, selected ? col::white : label_color, label);
+    float label_x = bb.Min.x;
+    if (avatar)
+    {
+        DrawAvatar(dl, ImVec2(bb.Min.x + 13.0f, cy), 12.0f, *avatar);
+        label_x += 34.0f;
+    }
+    DrawLabel(dl, g_regular, kLabelSize, ImVec2(label_x, LabelY(cy)), max_x, selected ? col::white : label_color, label);
 
     GImGui->Style.Alpha = alpha;
     if (enter < 1.0f)

@@ -36,22 +36,6 @@ namespace
 		return font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
 	}
 
-	// A bar with round ends: dark track, coloured fill, a faint glow around the fill.
-	void capsule(ImDrawList* dl, ImVec2 a, ImVec2 b, float amount, bool vertical, ImU32 col, float alpha)
-	{
-		const float r = vertical ? (b.x - a.x) * 0.5f : (b.y - a.y) * 0.5f;
-		dl->AddRectFilled(ImVec2(a.x - 1.0f, a.y - 1.0f), ImVec2(b.x + 1.0f, b.y + 1.0f), black(0.55f * alpha), r + 1.0f);
-		amount = std::clamp(amount, 0.0f, 1.0f);
-		if (amount <= 0.0f)
-			return;
-		ImVec2 fa = a, fb = b;
-		if (vertical)
-			fa.y = b.y - (b.y - a.y) * amount;
-		else
-			fb.x = a.x + (b.x - a.x) * amount;
-		dl->AddRectFilled(ImVec2(fa.x - 1.0f, fa.y - 1.0f), ImVec2(fb.x + 1.0f, fb.y + 1.0f), with_alpha(col, 0.25f), r + 1.0f);
-		dl->AddRectFilled(fa, fb, col, r);
-	}
 }
 
 ImU32 esp_draw::health_color(float health, float alpha)
@@ -65,117 +49,119 @@ ImU32 esp_draw::health_color(float health, float alpha)
 
 void esp_draw::player(ImDrawList* dl, const player_t& p)
 {
+	// Restraint is the design: one crisp box that owns the eye, text that sits directly on the
+	// game with a shadow (no pills, no containers), colour only where it means something (health,
+	// a target, a team), and every piece aligned to the box's own edges and centre.
 	const ImDrawListFlags old_flags = dl->Flags;
 	dl->Flags |= ImDrawListFlags_AntiAliasedLines | ImDrawListFlags_AntiAliasedFill;
 
 	const ImVec2 mn(std::round(p.min.x), std::round(p.min.y));
 	const ImVec2 mx(std::round(p.max.x), std::round(p.max.y));
 	const float w = mx.x - mn.x, h = mx.y - mn.y;
-	const float radius = std::clamp((std::min)(w, h) * 0.08f, 2.0f, 6.0f);
-	ImFont* semibold = ui::EspFont();
-	ImFont* regular = ui::EspFont();
+	const float cx = std::round((mn.x + mx.x) * 0.5f);
+	ImFont* font = ui::EspFont();
+
+	// ---- fill: flat, as set ----
+	if (alpha_of(p.fill) > 0)
+		dl->AddRectFilled(ImVec2(mn.x + 1.0f, mn.y + 1.0f), ImVec2(mx.x - 1.0f, mx.y - 1.0f), p.fill);
 
 	// ---- box ----
-	if (alpha_of(p.fill) > 0)
-		dl->AddRectFilled(mn, mx, p.fill, radius);
-
 	if (alpha_of(p.box) > 0)
 	{
 		const float a = alpha_of(p.box) / 255.0f;
 		if (p.box_style == 1)
 		{
-			// Corner brackets with round caps.
-			const float len = std::clamp((std::min)(w, h) * 0.25f, 6.0f, 22.0f);
+			// Corner brackets: a dark line under a 2px coloured one.
+			const float len = std::clamp((std::min)(w, h) * 0.28f, 8.0f, 26.0f);
 			const ImVec2 c[4] = { mn, ImVec2(mx.x, mn.y), mx, ImVec2(mn.x, mx.y) };
 			const ImVec2 dir[4][2] = { { { 1, 0 }, { 0, 1 } }, { { -1, 0 }, { 0, 1 } }, { { -1, 0 }, { 0, -1 } }, { { 1, 0 }, { 0, -1 } } };
 			for (int pass = 0; pass < 2; ++pass)
 				for (int i = 0; i < 4; ++i)
 					for (int k = 0; k < 2; ++k)
 						dl->AddLine(c[i], ImVec2(c[i].x + dir[i][k].x * len, c[i].y + dir[i][k].y * len),
-							pass == 0 ? black(0.55f * a) : p.box, pass == 0 ? 3.5f : 1.6f);
+							pass == 0 ? black(0.6f * a) : p.box, pass == 0 ? 4.0f : 2.0f);
 		}
 		else
 		{
+			// A 1px coloured line between two 1px dark lines: crisp on any background. The glow
+			// style adds a soft halo in the box's colour.
 			if (p.box_style == 2)
-				for (int i = 3; i >= 1; --i)
-					dl->AddRect(ImVec2(mn.x - i, mn.y - i), ImVec2(mx.x + i, mx.y + i), with_alpha(p.box, 0.12f * (4 - i)), radius + i, 0, 2.0f);
-			dl->AddRect(mn, mx, black(0.55f * a), radius, 0, 3.5f);
-			dl->AddRect(mn, mx, p.box, radius, 0, 1.5f);
+				for (int i = 4; i >= 1; --i)
+					dl->AddRect(ImVec2(mn.x - i - 1.0f, mn.y - i - 1.0f), ImVec2(mx.x + i + 1.0f, mx.y + i + 1.0f), with_alpha(p.box, 0.10f), 0.0f, 0, 2.0f);
+			dl->AddRect(ImVec2(mn.x - 1.0f, mn.y - 1.0f), ImVec2(mx.x + 1.0f, mx.y + 1.0f), black(0.75f * a), 0.0f, 0, 1.0f);
+			dl->AddRect(ImVec2(mn.x + 1.0f, mn.y + 1.0f), ImVec2(mx.x - 1.0f, mx.y - 1.0f), black(0.55f * a), 0.0f, 0, 1.0f);
+			dl->AddRect(mn, mx, p.box, 0.0f, 0, 1.0f);
 		}
 	}
 
-	// ---- health (left) and armor (below) ----
-	float below = mx.y + 5.0f;
+	// ---- health: a 2px bar down the left, its number beside the fill's top ----
+	float below = mx.y + 4.0f;
 	if (p.health >= 0.0f)
 	{
-		const ImU32 col = p.health_col ? p.health_col : health_color(p.health, p.bar_alpha);
-		const ImVec2 a(mn.x - 7.0f, mn.y), b(mn.x - 4.0f, mx.y);
-		capsule(dl, a, b, p.health, true, col, p.bar_alpha);
-		if (p.health_text && p.health < 0.995f)
+		const float health = std::clamp(p.health, 0.0f, 1.0f);
+		const ImU32 col = p.health_col ? p.health_col : health_color(health, p.bar_alpha);
+		const ImVec2 a(mn.x - 6.0f, mn.y), b(mn.x - 4.0f, mx.y);
+		dl->AddRectFilled(ImVec2(a.x - 1.0f, a.y - 1.0f), ImVec2(b.x + 1.0f, b.y + 1.0f), black(0.75f * p.bar_alpha));
+		const float top = std::round(b.y - (b.y - a.y) * health);
+		if (health > 0.0f)
+			dl->AddRectFilled(ImVec2(a.x, top), b, col);
+		if (p.health_text && health < 0.995f)
 		{
 			char text[8];
-			snprintf(text, sizeof(text), "%d", static_cast<int>(std::ceil(p.health * 100.0f)));
-			const ImVec2 ts = text_size(regular, 11.0f, text);
-			const float y = std::clamp(b.y - (b.y - a.y) * p.health - ts.y * 0.5f, a.y - ts.y * 0.5f, b.y - ts.y * 0.5f);
-			shadow_text(dl, regular, 11.0f, ImVec2(a.x - 3.0f - ts.x, y), p.health_text_col, text);
+			snprintf(text, sizeof(text), "%d", static_cast<int>(std::ceil(health * 100.0f)));
+			const ImVec2 ts = text_size(font, 11.0f, text);
+			shadow_text(dl, font, 11.0f, ImVec2(a.x - 4.0f - ts.x, std::clamp(top - ts.y * 0.5f, a.y, b.y - ts.y)), p.health_text_col, text);
 		}
 	}
 	if (p.armor >= 0.0f)
 	{
-		capsule(dl, ImVec2(mn.x, mx.y + 4.0f), ImVec2(mx.x, mx.y + 6.5f), p.armor, false, p.armor_col, p.bar_alpha);
-		below = mx.y + 10.0f;
+		const float armor = std::clamp(p.armor, 0.0f, 1.0f);
+		const ImVec2 a(mn.x, mx.y + 4.0f), b(mx.x, mx.y + 6.0f);
+		dl->AddRectFilled(ImVec2(a.x - 1.0f, a.y - 1.0f), ImVec2(b.x + 1.0f, b.y + 1.0f), black(0.75f * p.bar_alpha));
+		if (armor > 0.0f)
+			dl->AddRectFilled(a, ImVec2(a.x + (b.x - a.x) * armor, b.y), p.armor_col);
+		below = mx.y + 9.0f;
 	}
 
-	// ---- name pill above ----
+	// ---- name above, centred; the accent (team, target, whitelist) colours the name itself ----
 	if (p.name && *p.name && alpha_of(p.name_col) > 0)
 	{
-		const float a = alpha_of(p.name_col) / 255.0f;
-		const float size = 12.5f;
-		const ImVec2 ts = text_size(semibold, size, p.name);
-		const bool dot = alpha_of(p.accent) > 0;
-		const float pad = 7.0f, dot_w = dot ? 9.0f : 0.0f, ph = 18.0f;
-		const float pw = ts.x + pad * 2.0f + dot_w;
-		const float cx = (mn.x + mx.x) * 0.5f;
-		ImVec2 pa(std::round(cx - pw * 0.5f), std::round(mn.y - 6.0f - ph));
-		ImVec2 pb(pa.x + pw, pa.y + ph);
+		const float size = 13.0f;
+		const ImU32 col = alpha_of(p.accent) > 0 ? (p.accent & ~IM_COL32_A_MASK) | (p.name_col & IM_COL32_A_MASK) : p.name_col;
+		const ImVec2 ts = text_size(font, size, p.name);
+		const float pic = p.avatar ? 16.0f + 5.0f : 0.0f;
+		float x = std::round(cx - (ts.x + pic) * 0.5f);
+		const float y = std::round(mn.y - 5.0f - ts.y);
 		if (p.avatar)
 		{
-			const float s = ph;
-			pa.x += (s + 4.0f) * 0.5f;
-			pb.x += (s + 4.0f) * 0.5f;
-			dl->AddImageRounded(p.avatar, ImVec2(pa.x - 4.0f - s, pa.y), ImVec2(pa.x - 4.0f, pb.y), ImVec2(0, 0), ImVec2(1, 1),
-				IM_COL32(255, 255, 255, static_cast<int>(255 * a)), s * 0.5f);
+			const ImVec2 c(x + 8.0f, y + ts.y * 0.5f);
+			dl->AddCircleFilled(c, 9.0f, black(0.6f * alpha_of(p.name_col) / 255.0f), 20);
+			dl->AddImageRounded(p.avatar, ImVec2(c.x - 8.0f, c.y - 8.0f), ImVec2(c.x + 8.0f, c.y + 8.0f), ImVec2(0, 0), ImVec2(1, 1), IM_COL32(255, 255, 255, alpha_of(p.name_col)), 8.0f);
+			x += pic;
 		}
-		dl->AddRectFilled(pa, pb, IM_COL32(10, 10, 14, static_cast<int>(165 * a)), ph * 0.5f);
-		dl->AddRect(pa, pb, IM_COL32(255, 255, 255, static_cast<int>(22 * a)), ph * 0.5f, 0, 1.0f);
-		float tx = pa.x + pad;
-		if (dot)
-		{
-			dl->AddCircleFilled(ImVec2(tx + 2.5f, (pa.y + pb.y) * 0.5f), 2.75f, p.accent, 12);
-			tx += dot_w;
-		}
-		dl->AddText(semibold, size, ImVec2(std::round(tx), std::round((pa.y + pb.y) * 0.5f - ts.y * 0.5f)), p.name_col, p.name);
+		shadow_text(dl, font, size, ImVec2(x, y), col, p.name);
 	}
 
-	// ---- info and tag below ----
+	// ---- under the box: distance and tool, then a tag; quiet text, centred ----
 	if (p.info && *p.info && alpha_of(p.info_col) > 0)
 	{
-		const ImVec2 ts = text_size(regular, 12.0f, p.info);
-		shadow_text(dl, regular, 12.0f, ImVec2((mn.x + mx.x) * 0.5f - ts.x * 0.5f, below), p.info_col, p.info);
+		const ImVec2 ts = text_size(font, 11.5f, p.info);
+		shadow_text(dl, font, 11.5f, ImVec2(cx - ts.x * 0.5f, below), p.info_col, p.info);
 		below += ts.y + 1.0f;
 	}
 	if (p.tag && *p.tag && alpha_of(p.tag_col) > 0)
 	{
-		const ImVec2 ts = text_size(semibold, 11.0f, p.tag);
-		shadow_text(dl, semibold, 11.0f, ImVec2((mn.x + mx.x) * 0.5f - ts.x * 0.5f, below), p.tag_col, p.tag);
+		const ImVec2 ts = text_size(font, 11.5f, p.tag);
+		shadow_text(dl, font, 11.5f, ImVec2(cx - ts.x * 0.5f, below), p.tag_col, p.tag);
 	}
 
-	// ---- state flag, right ----
+	// ---- state, right of the box's top edge ----
 	if (p.flag && *p.flag && alpha_of(p.flag_col) > 0)
-		shadow_text(dl, regular, 11.0f, ImVec2(mx.x + 6.0f, mn.y), p.flag_col, p.flag);
+		shadow_text(dl, font, 11.0f, ImVec2(mx.x + 5.0f, mn.y), p.flag_col, p.flag);
 
 	dl->Flags = old_flags;
 }
+
 
 void esp_draw::skeleton(ImDrawList* dl, const std::vector<std::pair<ImVec2, ImVec2>>& bones, ImU32 color, float thickness)
 {

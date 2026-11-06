@@ -578,32 +578,32 @@ int menu_preview::run()
                 c.selected ? 1 : 0, (int)c.state, c.message.c_str());
         capture("update_1_launcher", [] { Menu::DrawModePicker(); }, -1, -1, -1, -1, 10, 45);
 
-        // An update left unticked (a local build) gets ticked by clicking its row. The rows sit
-        // under the cards: launcher 304 px + 30 px a row + 12, centred on the canvas.
+        // An update left unticked (a local build) gets ticked by clicking its row in the dialog
+        // (Menu::UpdateDialogPoint knows where the dialog was drawn).
         {
             const std::vector<updater::component_t> comps = updater::components();
-            const float h = 304.0f + comps.size() * 30.0f + 12.0f;
-            const float top = floorf((kHeight - h) * 0.5f);
+            int row = 0;
             for (size_t i = 0; i < comps.size(); ++i)
             {
-                if (!comps[i].available || comps[i].selected)
+                if (!comps[i].available)
                     continue;
-                const float row_y = top + 260.0f + 15.0f + 30.0f * i;
-                capture("update_1b_ticked", [] { Menu::DrawModePicker(); }, kWidth * 0.5f, row_y, 0, -1, 10, 30);
-                for (const updater::component_t& c : updater::components())
-                    if (c.name == comps[i].name)
-                        report("clicked %s's row: ticked %d (1)\n", c.name.c_str(), c.selected ? 1 : 0);
+                if (!comps[i].selected)
+                {
+                    const ImVec2 pt = Menu::UpdateDialogPoint("row", row);
+                    capture("update_1b_ticked", [] { Menu::DrawModePicker(); }, pt.x, pt.y, 0, -1, 10, 30);
+                    for (const updater::component_t& c : updater::components())
+                        if (c.name == comps[i].name)
+                            report("clicked %s's row: ticked %d (1)\n", c.name.c_str(), c.selected ? 1 : 0);
+                }
+                row++;
             }
         }
 
-        // --update-test-restart: click the launcher's Update button and expect natware to swap
+        // --update-test-restart: click the dialog's Update now and expect natware to swap
         // itself, start the new exe and ask to quit (it isn't the editor's coordinator here).
         if (strstr(GetCommandLineA(), "--update-test-restart")) {
-            const float h = 304.0f + updater::components().size() * 30.0f + 12.0f;
-            const float top = floorf((kHeight - h) * 0.5f);
-            const float button_y = top + 260.0f + (h - 304.0f) + 14.0f;
-            const float button_x = (kWidth + 560.0f) * 0.5f - 24.0f - 43.0f;
-            capture("update_6_restart_click", [] { Menu::DrawModePicker(); }, button_x, button_y, 0, -1, 10, 20);
+            const ImVec2 pt = Menu::UpdateDialogPoint("update");
+            capture("update_6_restart_click", [] { Menu::DrawModePicker(); }, pt.x, pt.y, 0, -1, 10, 20);
             for (int i = 0; i < 400 && !settings::globals::quit_requested
                 && updater::status().state != updater::state_t::failed; ++i)
                 Sleep(25);
@@ -715,10 +715,86 @@ int menu_preview::run()
         capture("launcher_hover", [] { Menu::DrawModePicker(); }, 509.0f, 420.0f, -1, -1, 10, 45);
         capture("launcher_close_hover", [] { Menu::DrawModePicker(); }, 890.0f, 276.0f, -1, -1, 10, 30);
         capture("waiting", [] { Menu::DrawWaiting("Waiting for Roblox to open"); }, -1, -1, -1, -1, 10, 60);
+        // The update dialog over the launcher, with a made-up release.
+        Menu::PreviewUpdateDialog(true);
+        capture("launcher_update", [] { Menu::DrawModePicker(); }, -1, -1, -1, -1, 10, 60);
+        Menu::PreviewUpdateDialog(false);
         // Clicking the picker's close button must ask natware to quit (after its fade).
         settings::globals::quit_requested = false;
         capture("launcher_closing", [] { Menu::DrawModePicker(); }, 890.0f, 276.0f, 0, -1, 4, 60);
         report("picker close button -> quit requested: %s\n", settings::globals::quit_requested ? "yes" : "NO");
+        ExitProcess(0);
+    }
+
+    // The in-game ESP look on sample players (the real esp_draw code), over a stand-in scene.
+    if (strstr(GetCommandLineA(), "--esp")) {
+        capture("esp_samples", []
+        {
+            ImDrawList* dl = ImGui::GetBackgroundDrawList();
+            // Dusk sky, a floor under it, and a figure for each box to sit on.
+            const float horizon = 350.0f;
+            dl->AddRectFilledMultiColor(ImVec2(0, 0), ImVec2((float)kWidth, horizon),
+                IM_COL32(38, 50, 80, 255), IM_COL32(38, 50, 80, 255), IM_COL32(112, 96, 118, 255), IM_COL32(112, 96, 118, 255));
+            dl->AddRectFilledMultiColor(ImVec2(0, horizon), ImVec2((float)kWidth, (float)kHeight),
+                IM_COL32(58, 52, 62, 255), IM_COL32(58, 52, 62, 255), IM_COL32(24, 22, 28, 255), IM_COL32(24, 22, 28, 255));
+            auto figure = [dl](ImVec2 mn, ImVec2 mx)
+            {
+                const float W = mx.x - mn.x, H = mx.y - mn.y, cx = (mn.x + mx.x) * 0.5f;
+                const ImU32 body = IM_COL32(34, 40, 54, 255), rim = IM_COL32(140, 160, 200, 110);
+                for (int i = 4; i >= 1; --i)
+                    dl->AddEllipseFilled(ImVec2(cx, mx.y), ImVec2(W * (0.55f + i * 0.10f), 5.0f + i * 2.0f), IM_COL32(0, 0, 0, 22));
+                dl->AddRectFilled(ImVec2(cx - W * 0.30f, mn.y + H * 0.55f), ImVec2(cx - W * 0.02f, mx.y - 1.0f), body, 3.0f);
+                dl->AddRectFilled(ImVec2(cx + W * 0.02f, mn.y + H * 0.55f), ImVec2(cx + W * 0.30f, mx.y - 1.0f), body, 3.0f);
+                dl->AddRectFilled(ImVec2(cx - W * 0.30f, mn.y + H * 0.20f), ImVec2(cx + W * 0.30f, mn.y + H * 0.57f), body, 5.0f);
+                dl->AddRectFilled(ImVec2(cx - W * 0.46f, mn.y + H * 0.21f), ImVec2(cx - W * 0.32f, mn.y + H * 0.52f), body, 4.0f);
+                dl->AddRectFilled(ImVec2(cx + W * 0.32f, mn.y + H * 0.21f), ImVec2(cx + W * 0.46f, mn.y + H * 0.52f), body, 4.0f);
+                dl->AddCircleFilled(ImVec2(cx, mn.y + H * 0.115f), W * 0.20f, body, 28);
+                dl->AddLine(ImVec2(cx - W * 0.30f, mn.y + H * 0.24f), ImVec2(cx - W * 0.30f, mn.y + H * 0.54f), rim, 1.5f);
+                dl->PathArcTo(ImVec2(cx, mn.y + H * 0.115f), W * 0.20f, 2.5f, 3.9f, 12);
+                dl->PathStroke(rim, ImDrawFlags_None, 1.5f);
+            };
+            struct sample_t { float x, top, w, h; int style; bool fill; float health; bool armor; bool target; const char* info; const char* name; };
+            const sample_t samples[] = {
+                { 130.0f, 200.0f, 96.0f, 250.0f, 0, true,  0.72f, true,  false, "24 studs  \xC2\xB7  Rifle", "natware" },
+                { 380.0f, 200.0f, 96.0f, 250.0f, 1, false, 0.28f, false, true,  "61 studs", "target_user" },
+                { 630.0f, 200.0f, 96.0f, 250.0f, 2, false, 1.00f, false, false, "9 studs  \xC2\xB7  Knife", "glow_style" },
+                { 880.0f, 270.0f, 46.0f, 120.0f, 0, true,  0.55f, false, false, "112 studs", "far_away" },
+            };
+            for (const sample_t& s : samples)
+            {
+                const ImVec2 mn(s.x, s.top), mx(s.x + s.w, s.top + s.h);
+                figure(mn, mx);
+                esp_draw::player_t look{};
+                look.min = mn;
+                look.max = mx;
+                look.box = s.target ? IM_COL32(255, 70, 70, 255) : IM_COL32(255, 255, 255, 255);
+                look.box_style = s.style;
+                if (s.fill)
+                    look.fill = IM_COL32(255, 255, 255, 40);
+                look.name = s.name;
+                look.name_col = IM_COL32(245, 245, 248, 255);
+                look.accent = s.target ? IM_COL32(255, 70, 70, 255) : 0;   // only a target, a team or the whitelist colours a name
+                look.health = s.health;
+                look.bar_alpha = 1.0f;
+                look.health_text = true;
+                look.health_text_col = IM_COL32(245, 245, 248, 255);
+                if (s.armor)
+                {
+                    look.armor = 0.45f;
+                    look.armor_col = IM_COL32(90, 160, 255, 255);
+                }
+                look.info = s.info;
+                look.info_col = IM_COL32(235, 235, 240, 255);
+                look.flag = s.w > 60.0f ? "Running" : nullptr;
+                look.flag_col = IM_COL32(200, 200, 210, 255);
+                if (s.target)
+                {
+                    look.tag = "TARGET";
+                    look.tag_col = IM_COL32(255, 70, 70, 255);
+                }
+                esp_draw::player(dl, look);
+            }
+        }, -1.0f, -1.0f, -1, -1.0f, 10, 3);
         ExitProcess(0);
     }
 

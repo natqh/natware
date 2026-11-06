@@ -23,7 +23,9 @@ namespace ui::veil
     // at its edges (per-channel, so the bend fringes). `frost` is its backgroundOpacity (black,
     // as in the dark scheme); `distortion` its distortionScale. Falls back to a flat translucent
     // fill when this window has no veil this frame.
-    void Glass(ImDrawList* dl, ImVec2 min, ImVec2 max, float radius, float frost = 0.0f, float distortion = -180.0f);
+    // No refraction by default now: the backdrop is a character grid, and bending it smears the
+    // glyphs into bands. A pane is a clean cut-out of the field under its own surface.
+    void Glass(ImDrawList* dl, ImVec2 min, ImVec2 max, float radius, float frost = 0.0f, float distortion = 0.0f);
 
     // Group opacity: marks `list` to be drawn at `alpha` as part of one flattened layer this
     // frame, so overlapping panes fade together. RenderDrawData honours it.

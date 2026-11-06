@@ -6,6 +6,9 @@
 // puts it on the launcher window for the taskbar.
 1 ICON "natware.ico"
 
+// The launcher's animated backdrop (launcher_bg.gif), read by menu.cpp as resource 101.
+101 RCDATA "launcher_bg.gif"
+
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION NATWARE_VERSION_RC
  PRODUCTVERSION NATWARE_VERSION_RC
